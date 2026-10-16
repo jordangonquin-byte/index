@@ -323,9 +323,13 @@
             <i class="fa-regular fa-calendar-days" style="color: #ffffff;"></i>
             <span id="date-text">Cargando fecha...</span>
         </div>
-        <!-- Botón de gestión visible solo para Administrador -->
+        <!-- Botón de gestión de usuarios visible solo para Administrador -->
         <button id="admin-panel-btn" onclick="abrirPanelAdmin()" class="top-btn" style="display: none;" title="Gestionar Usuarios">
             <i class="fa-solid fa-users-gear"></i> Usuarios
+        </button>
+        <!-- Botón de bitácora visible solo para Administrador -->
+        <button id="admin-logs-btn" onclick="descargarReporteActividad()" class="top-btn" style="display: none; background: #2563eb;" title="Descargar Reporte de Actividad">
+            <i class="fa-solid fa-file-excel"></i> Bitácora
         </button>
         <button onclick="cerrarSesion()" class="top-btn" title="Cerrar Sesión">
             <i class="fa-solid fa-right-from-bracket"></i> Salir
@@ -389,15 +393,53 @@
 
     <script>
         /* ==========================================================================
+           SISTEMA DE BITÁCORA Y AUDITORÍA DE ACTIVIDAD
+           ========================================================================== */
+        function registrarActividad(accion) {
+            const usuarioActual = localStorage.getItem('auth_user') || 'Desconocido';
+            const logs = JSON.parse(localStorage.getItem('system_logs') || '[]');
+            
+            const nuevoRegistro = {
+                fecha: new Date().toLocaleString('es-MX'),
+                usuario: usuarioActual,
+                accion: accion
+            };
+
+            logs.push(nuevoRegistro);
+            if (logs.length > 500) logs.shift(); // Mantener un límite de registros
+            localStorage.setItem('system_logs', JSON.stringify(logs));
+        }
+
+        function descargarReporteActividad() {
+            const logs = JSON.parse(localStorage.getItem('system_logs') || '[]');
+            if (logs.length === 0) {
+                alert("No hay registros de actividad en la bitácora aún.");
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,Fecha y Hora,Usuario,Accion Realizada\n";
+            logs.forEach(log => {
+                csvContent += `"${log.fecha}","${log.usuario}","${log.accion}"\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `Reporte_Actividad_Estafeta_${new Date().toISOString().slice(0,10)}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            registrarActividad('Descargó el reporte de bitácora de actividad');
+        }
+
+        /* ==========================================================================
            PARTE 1: CÓDIGO PARA EL INDEX / LOGIN (Al iniciar sesión de forma exitosa)
            ========================================================================== */
         function iniciarSesionExitosa(rolSeleccionado) {
-            // rolSeleccionado debe ser 'admin' o 'user'
-            // Codificamos el rol junto con la marca de tiempo en Base64 para mayor seguridad
             const tokenSeguro = btoa(rolSeleccionado + "|" + Date.now()); 
             localStorage.setItem('auth_role', tokenSeguro);
-            
-            // Recargar la página o redirigir al panel principal
+            registrarActividad('Inicio de sesión exitoso');
             location.reload();
         }
 
@@ -446,6 +488,7 @@
         }
 
         function cerrarSesion() {
+            registrarActividad('Cerró sesión');
             localStorage.removeItem('auth_role');
             localStorage.removeItem('auth_user');
             location.reload();
@@ -455,7 +498,6 @@
            PARTE 2: CÓDIGO PARA LOS MÓDULOS OPERATIVOS (Seguridad, Decodificación e Inactividad)
            ========================================================================== */
         window.addEventListener('DOMContentLoaded', () => {
-            // 1. Consultar el rol activo codificado guardado en el navegador
             const encodedRole = localStorage.getItem('auth_role');
             
             if (!encodedRole) {
@@ -465,14 +507,12 @@
 
             let rol = '';
             try {
-                // Decodificamos el Base64 para evitar modificaciones simples desde la consola
                 const decoded = atob(encodedRole);
                 const parts = decoded.split('|');
                 if (parts.length >= 1) {
                     rol = parts[0];
                 }
             } catch (e) {
-                // Si el valor fue alterado y no es un Base64 válido, limpiar y mostrar login
                 localStorage.removeItem('auth_role');
                 document.getElementById('auth-modal').style.display = 'flex';
                 return;
@@ -483,45 +523,37 @@
                 return;
             }
 
-            // Ocultar modal de login si la sesión es válida
             document.getElementById('auth-modal').style.display = 'none';
 
-            // 2. Control de Inactividad (Cierre automático de sesión a los 30 minutos)
+            // Control de Inactividad (Cierre automático de sesión a los 30 minutos)
             let inactivityTimer;
-            const maxInactivityMinutes = 30; // Puedes ajustar los minutos aquí
+            const maxInactivityMinutes = 30;
 
             function resetInactivityTimer() {
                 clearTimeout(inactivityTimer);
                 inactivityTimer = setTimeout(() => {
                     alert("Su sesión ha expirado por inactividad.");
+                    registrarActividad('Sesión expirada por inactividad');
                     localStorage.removeItem('auth_role');
                     localStorage.removeItem('auth_user');
                     location.reload();
                 }, maxInactivityMinutes * 60 * 1000);
             }
 
-            // Registrar eventos del usuario para reiniciar el contador de inactividad
             ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
                 window.addEventListener(event, resetInactivityTimer);
             });
             resetInactivityTimer();
 
-            // 3. Aplicar restricciones de seguridad si NO es administrador
             if (rol !== 'admin') {
-                console.log("Aplicando medidas de seguridad en este módulo.");
-                
-                // Bloquear Clic Secundario
                 document.addEventListener('contextmenu', e => e.preventDefault());
-
-                // Bloquear Selección de Texto
                 document.addEventListener('selectstart', e => e.preventDefault());
-
-                // Bloquear Copiar
                 document.addEventListener('copy', e => e.preventDefault());
             } else {
-                console.warn("Modo Administrador: Módulo libre sin restricciones.");
                 const adminBtn = document.getElementById('admin-panel-btn');
+                const adminLogsBtn = document.getElementById('admin-logs-btn');
                 if (adminBtn) adminBtn.style.display = 'flex';
+                if (adminLogsBtn) adminLogsBtn.style.display = 'flex';
             }
         });
 
@@ -529,6 +561,7 @@
         function abrirPanelAdmin() {
             renderizarTablaUsuarios();
             document.getElementById('admin-modal').style.display = 'flex';
+            registrarActividad('Abrió el panel de gestión de usuarios');
         }
 
         function cerrarPanelAdmin() {
@@ -589,8 +622,10 @@
                     return;
                 }
                 users.push({ user: username, pass: password, role: 'user' });
+                registrarActividad(`Dio de alta al nuevo usuario: '${username}'`);
             } else {
                 users[editIndex].pass = password;
+                registrarActividad(`Modificó la contraseña del usuario: '${username}'`);
             }
 
             localStorage.setItem('system_users', JSON.stringify(users));
@@ -613,9 +648,11 @@
         function eliminarUsuario(index) {
             let users = JSON.parse(localStorage.getItem('system_users') || '[]');
             if (confirm(`¿Estás seguro de dar de baja al usuario "${users[index].user}"?`)) {
+                const eliminado = users[index].user;
                 users.splice(index, 1);
                 localStorage.setItem('system_users', JSON.stringify(users));
                 renderizarTablaUsuarios();
+                registrarActividad(`Dio de baja al usuario: '${eliminado}'`);
             }
         }
 
@@ -660,6 +697,9 @@
 
                 const targetId = this.getAttribute('data-target');
                 document.getElementById(targetId).classList.add('active-frame');
+
+                const moduloNombre = this.innerText.trim();
+                registrarActividad(`Navegó al módulo: ${moduloNombre}`);
 
                 resumenSubmenu.classList.remove('open');
                 resumenToggle.classList.remove('expanded');
