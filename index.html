@@ -327,8 +327,14 @@
         <i class="fa-solid fa-bars"></i>
     </div>
 
-    <!-- Barra superior con la fecha y botones de administración / salida -->
+    <!-- Barra superior con la fecha, banner de usuario activo y botones de administración / salida -->
     <div class="top-bar">
+        <!-- Banner del Usuario Conectado -->
+        <div class="fecha-banner" id="user-session-banner" style="background: rgba(0, 0, 0, 0.3);">
+            <i class="fa-solid fa-user-circle" style="color: #ffffff;"></i>
+            <span id="logged-user-text">Cargando usuario...</span>
+        </div>
+
         <div class="fecha-banner" id="current-date">
             <i class="fa-regular fa-calendar-days" style="color: #ffffff;"></i>
             <span id="date-text">Cargando fecha...</span>
@@ -446,9 +452,10 @@
         /* ==========================================================================
            AUTENTICACIÓN Y ROLES
            ========================================================================== */
-        function iniciarSesionExitosa(rolSeleccionado) {
+        function iniciarSesionExitosa(rolSeleccionado, nombreUsuario) {
             const tokenSeguro = btoa(rolSeleccionado + "|" + Date.now()); 
             localStorage.setItem('auth_role', tokenSeguro);
+            localStorage.setItem('auth_user', nombreUsuario);
             registrarActividad('Inicio de sesión exitoso');
             location.reload();
         }
@@ -466,7 +473,7 @@
             }
         }
 
-        // Inicializar base de usuarios por defecto (Incluyendo Gerente)
+        // Inicializar base de usuarios por defecto
         function inicializarUsuariosBase() {
             if (!localStorage.getItem('system_users')) {
                 const usuariosDefault = [
@@ -489,8 +496,7 @@
             const encontrado = users.find(u => u.user === inputUser && u.pass === inputPass);
 
             if (encontrado) {
-                localStorage.setItem('auth_user', encontrado.user);
-                iniciarSesionExitosa(encontrado.role);
+                iniciarSesionExitosa(encontrado.role, encontrado.user);
             } else {
                 errorEl.style.display = 'block';
             }
@@ -508,8 +514,9 @@
            ========================================================================== */
         window.addEventListener('DOMContentLoaded', () => {
             const encodedRole = localStorage.getItem('auth_role');
+            const loggedUser = localStorage.getItem('auth_user');
             
-            if (!encodedRole) {
+            if (!encodedRole || !loggedUser) {
                 document.getElementById('auth-modal').style.display = 'flex';
                 return;
             }
@@ -519,10 +526,11 @@
                 const decoded = atob(encodedRole);
                 const parts = decoded.split('|');
                 if (parts.length >= 1) {
-                    rol = parts[0]; // Puede ser 'admin', 'manager' o 'user'
+                    rol = parts[0];
                 }
             } catch (e) {
                 localStorage.removeItem('auth_role');
+                localStorage.removeItem('auth_user');
                 document.getElementById('auth-modal').style.display = 'flex';
                 return;
             }
@@ -531,6 +539,13 @@
                 document.getElementById('auth-modal').style.display = 'flex';
                 return;
             }
+
+            // Mostrar el nombre y rol del usuario actual en el banner superior
+            let roleBadge = 'Usuario';
+            if (rol === 'admin') roleBadge = 'Administrador';
+            else if (rol === 'manager') roleBadge = 'Gerente';
+
+            document.getElementById('logged-user-text').innerHTML = `<b>${loggedUser}</b> <span style="font-size:10px; opacity:0.8; font-weight:normal;">(${roleBadge})</span>`;
 
             document.getElementById('auth-modal').style.display = 'none';
 
@@ -556,18 +571,15 @@
 
             // REGLAS DE RESTRICCIÓN SEGÚN EL PERFIL:
             if (rol === 'user') {
-                // Perfil Usuario: TIENE TODOS LOS BLOQUEOS DE SEGURIDAD
                 console.log("Aplicando restricciones completas para perfil Usuario.");
                 document.addEventListener('contextmenu', e => e.preventDefault());
                 document.addEventListener('selectstart', e => e.preventDefault());
                 document.addEventListener('copy', e => e.preventDefault());
             } 
             else if (rol === 'manager') {
-                // Perfil Gerente: LIBRE DE RESTRICCIONES DE INTERFAZ (Puede seleccionar, copiar y usar clic derecho)
                 console.log("Perfil Gerente activo: Sin bloqueos de selección o copiado.");
             } 
             else if (rol === 'admin') {
-                // Perfil Administrador: ACCESO LIBRE A TODO + BOTONES DE GESTIÓN
                 console.warn("Modo Administrador: Acceso y control total.");
                 const adminBtn = document.getElementById('admin-panel-btn');
                 const adminLogsBtn = document.getElementById('admin-logs-btn');
