@@ -246,7 +246,7 @@
             <form onsubmit="verificarAcceso(event)" style="display: flex; flex-direction: column; gap: 14px;">
                 <div>
                     <label style="display: block; font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; margin-bottom: 4px;">Usuario</label>
-                    <input type="text" id="auth-user" required style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Ej. admin o usuario">
+                    <input type="text" id="auth-user" required style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 13px; box-sizing: border-box; outline: none;" placeholder="Ej. admin, gerente o usuario">
                 </div>
                 <div>
                     <label style="display: block; font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; margin-bottom: 4px;">Contraseña</label>
@@ -288,6 +288,15 @@
                         </button>
                     </div>
                 </div>
+                <!-- Selección de Rol para el nuevo usuario -->
+                <div>
+                    <label style="display: block; font-size: 10px; font-weight: 700; color: #374151; text-transform: uppercase; margin-bottom: 2px;">Perfil / Rol</label>
+                    <select id="new-role" style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; outline: none; background: white;">
+                        <option value="user">Usuario (Con restricciones completas)</option>
+                        <option value="manager">Gerente (Sin restricciones de selección/copiado)</option>
+                        <option value="admin">Administrador (Acceso y control total)</option>
+                    </select>
+                </div>
                 <div style="display: flex; justify-content: flex-end; gap: 8px;">
                     <button type="button" id="cancel-edit-btn" onclick="resetUserForm()" style="display: none; background: #e5e7eb; color: #374151; border: none; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer;">Cancelar</button>
                     <button type="submit" style="background: #DA291C; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer;">Guardar Usuario</button>
@@ -301,6 +310,7 @@
                         <tr style="background: #f3f4f6; color: #4b5563;">
                             <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Usuario</th>
                             <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Contraseña</th>
+                            <th style="padding: 8px; border-bottom: 1px solid #e5e7eb;">Rol</th>
                             <th style="padding: 8px; border-bottom: 1px solid #e5e7eb; text-align: right;">Acciones</th>
                         </tr>
                     </thead>
@@ -406,7 +416,7 @@
             };
 
             logs.push(nuevoRegistro);
-            if (logs.length > 500) logs.shift(); // Mantener un límite de registros
+            if (logs.length > 500) logs.shift();
             localStorage.setItem('system_logs', JSON.stringify(logs));
         }
 
@@ -434,7 +444,7 @@
         }
 
         /* ==========================================================================
-           PARTE 1: CÓDIGO PARA EL INDEX / LOGIN (Al iniciar sesión de forma exitosa)
+           AUTENTICACIÓN Y ROLES
            ========================================================================== */
         function iniciarSesionExitosa(rolSeleccionado) {
             const tokenSeguro = btoa(rolSeleccionado + "|" + Date.now()); 
@@ -443,7 +453,6 @@
             location.reload();
         }
 
-        // Función general para alternar visibilidad de contraseña con el ícono del ojo
         function togglePasswordVisibility(inputId, iconId) {
             const input = document.getElementById(inputId);
             const icon = document.getElementById(iconId);
@@ -457,11 +466,12 @@
             }
         }
 
-        // Inicializar base de usuarios por defecto en localStorage si no existe
+        // Inicializar base de usuarios por defecto (Incluyendo Gerente)
         function inicializarUsuariosBase() {
             if (!localStorage.getItem('system_users')) {
                 const usuariosDefault = [
                     { user: 'admin', pass: 'Estafeta2026*', role: 'admin' },
+                    { user: 'gerente', pass: 'gerente123', role: 'manager' },
                     { user: 'usuario', pass: 'usuario123', role: 'user' }
                 ];
                 localStorage.setItem('system_users', JSON.stringify(usuariosDefault));
@@ -469,7 +479,6 @@
         }
         inicializarUsuariosBase();
 
-        // Lógica de Autenticación
         function verificarAcceso(event) {
             event.preventDefault();
             const inputUser = document.getElementById('auth-user').value.trim();
@@ -495,7 +504,7 @@
         }
 
         /* ==========================================================================
-           PARTE 2: CÓDIGO PARA LOS MÓDULOS OPERATIVOS (Seguridad, Decodificación e Inactividad)
+           VALIDACIÓN DE SEGURIDAD Y RESTRICCIONES POR ROL
            ========================================================================== */
         window.addEventListener('DOMContentLoaded', () => {
             const encodedRole = localStorage.getItem('auth_role');
@@ -510,7 +519,7 @@
                 const decoded = atob(encodedRole);
                 const parts = decoded.split('|');
                 if (parts.length >= 1) {
-                    rol = parts[0];
+                    rol = parts[0]; // Puede ser 'admin', 'manager' o 'user'
                 }
             } catch (e) {
                 localStorage.removeItem('auth_role');
@@ -525,7 +534,7 @@
 
             document.getElementById('auth-modal').style.display = 'none';
 
-            // Control de Inactividad (Cierre automático de sesión a los 30 minutos)
+            // Control de Inactividad (30 minutos)
             let inactivityTimer;
             const maxInactivityMinutes = 30;
 
@@ -545,11 +554,21 @@
             });
             resetInactivityTimer();
 
-            if (rol !== 'admin') {
+            // REGLAS DE RESTRICCIÓN SEGÚN EL PERFIL:
+            if (rol === 'user') {
+                // Perfil Usuario: TIENE TODOS LOS BLOQUEOS DE SEGURIDAD
+                console.log("Aplicando restricciones completas para perfil Usuario.");
                 document.addEventListener('contextmenu', e => e.preventDefault());
                 document.addEventListener('selectstart', e => e.preventDefault());
                 document.addEventListener('copy', e => e.preventDefault());
-            } else {
+            } 
+            else if (rol === 'manager') {
+                // Perfil Gerente: LIBRE DE RESTRICCIONES DE INTERFAZ (Puede seleccionar, copiar y usar clic derecho)
+                console.log("Perfil Gerente activo: Sin bloqueos de selección o copiado.");
+            } 
+            else if (rol === 'admin') {
+                // Perfil Administrador: ACCESO LIBRE A TODO + BOTONES DE GESTIÓN
+                console.warn("Modo Administrador: Acceso y control total.");
                 const adminBtn = document.getElementById('admin-panel-btn');
                 const adminLogsBtn = document.getElementById('admin-logs-btn');
                 if (adminBtn) adminBtn.style.display = 'flex';
@@ -575,16 +594,24 @@
             tbody.innerHTML = '';
 
             users.forEach((u, index) => {
+                let badgeColor = '#4b5563';
+                let roleName = 'Usuario';
+                if (u.role === 'admin') { badgeColor = '#b91c1c'; roleName = 'ADMIN'; }
+                else if (u.role === 'manager') { badgeColor = '#0369a1'; roleName = 'GERENTE'; }
+
                 tbody.innerHTML += `
                     <tr style="border-bottom: 1px solid #f3f4f6;">
-                        <td style="padding: 8px; font-weight: 600; color: #374151;">${u.user} ${u.role === 'admin' ? '<span style="background:#fee2e2; color:#b91c1c; font-size:9px; padding:2px 6px; border-radius:4px; margin-left:6px;">ADMIN</span>' : ''}</td>
+                        <td style="padding: 8px; font-weight: 600; color: #374151;">
+                            ${u.user} <span style="background:${badgeColor === '#b91c1c' ? '#fee2e2' : badgeColor === '#0369a1' ? '#e0f2fe' : '#f3f4f6'}; color:${badgeColor}; font-size:9px; padding:2px 6px; border-radius:4px; margin-left:6px;">${roleName}</span>
+                        </td>
                         <td style="padding: 8px; color: #6b7280;">
                             <span id="pass-mask-${index}">••••••••</span>
                             <span id="pass-text-${index}" style="display:none; font-family:monospace; color:#1f2937;">${u.pass}</span>
                         </td>
+                        <td style="padding: 8px; color: #6b7280; font-size: 11px;">${u.role}</td>
                         <td style="padding: 8px; text-align: right; display: flex; gap: 6px; justify-content: flex-end;">
                             <button onclick="toggleVerPasswordTabla(${index})" title="Ver/Ocultar Contraseña" style="background:#f3f4f6; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;"><i class="fa-solid fa-eye" id="eye-icon-${index}"></i></button>
-                            <button onclick="editarUsuario(${index})" title="Editar Contraseña" style="background:#e0f2fe; color:#0369a1; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;"><i class="fa-solid fa-pen"></i></button>
+                            <button onclick="editarUsuario(${index})" title="Editar Usuario/Rol" style="background:#e0f2fe; color:#0369a1; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;"><i class="fa-solid fa-pen"></i></button>
                             ${u.user !== 'admin' ? `<button onclick="eliminarUsuario(${index})" title="Dar de baja" style="background:#fee2e2; color:#b91c1c; border:none; padding:4px 8px; border-radius:4px; cursor:pointer;"><i class="fa-solid fa-trash"></i></button>` : ''}
                         </td>
                     </tr>
@@ -612,6 +639,7 @@
             event.preventDefault();
             const username = document.getElementById('new-username').value.trim();
             const password = document.getElementById('new-password').value.trim();
+            const role = document.getElementById('new-role').value;
             const editIndex = parseInt(document.getElementById('edit-index').value);
 
             let users = JSON.parse(localStorage.getItem('system_users') || '[]');
@@ -621,11 +649,12 @@
                     alert("El nombre de usuario ya existe.");
                     return;
                 }
-                users.push({ user: username, pass: password, role: 'user' });
-                registrarActividad(`Dio de alta al nuevo usuario: '${username}'`);
+                users.push({ user: username, pass: password, role: role });
+                registrarActividad(`Dio de alta al usuario '${username}' con rol '${role}'`);
             } else {
                 users[editIndex].pass = password;
-                registrarActividad(`Modificó la contraseña del usuario: '${username}'`);
+                users[editIndex].role = role;
+                registrarActividad(`Modificó credenciales/rol del usuario: '${username}'`);
             }
 
             localStorage.setItem('system_users', JSON.stringify(users));
@@ -640,8 +669,9 @@
             document.getElementById('new-username').value = u.user;
             document.getElementById('new-username').disabled = true;
             document.getElementById('new-password').value = u.pass;
+            document.getElementById('new-role').value = u.role;
             document.getElementById('edit-index').value = index;
-            document.getElementById('form-title').innerText = `Modificar Contraseña de: ${u.user}`;
+            document.getElementById('form-title').innerText = `Modificar Usuario: ${u.user}`;
             document.getElementById('cancel-edit-btn').style.display = 'inline-block';
         }
 
