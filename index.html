@@ -9,12 +9,11 @@
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #F4F6F9; overflow: hidden; }
         
-        /* Contenedor general de la barra superior en rojo corporativo */
         .top-bar { 
             display: flex; 
             justify-content: flex-end; 
             align-items: center;
-            background: #DA291C; /* Rojo Estafeta */
+            background: #DA291C; 
             padding: 10px 20px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.15);
             height: 55px;
@@ -22,7 +21,6 @@
             gap: 12px;
         }
 
-        /* Muesca visual en la esquina superior izquierda */
         .menu-tab {
             position: fixed;
             top: 0;
@@ -46,7 +44,6 @@
 
         .menu-tab:hover { background: #B51E12; }
 
-        /* Menú lateral retráctil a la izquierda */
         .menu {
             position: fixed;
             top: 55px;
@@ -141,7 +138,6 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
-        /* Botones de acción en barra superior */
         .top-btn {
             background: #B51E12;
             color: white;
@@ -158,7 +154,6 @@
         }
         .top-btn:hover { background: #90150d; }
 
-        /* Estilos del Modal de Login y Gestión */
         .modal-overlay {
             position: fixed;
             inset: 0;
@@ -180,7 +175,6 @@
             overflow-y: auto;
         }
 
-        /* Contenedor de input con botón de ojo integrado */
         .password-container {
             position: relative;
             display: flex;
@@ -208,7 +202,6 @@
         }
         .password-toggle-btn:hover { color: #1f2937; }
 
-        /* Contenedor de los iframes */
         .content-container {
             width: 100%;
             height: calc(100vh - 55px);
@@ -288,7 +281,6 @@
                         </button>
                     </div>
                 </div>
-                <!-- Selección de Rol para el nuevo usuario -->
                 <div>
                     <label style="display: block; font-size: 10px; font-weight: 700; color: #374151; text-transform: uppercase; margin-bottom: 2px;">Perfil / Rol</label>
                     <select id="new-role" style="width: 100%; padding: 6px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; outline: none; background: white;">
@@ -303,7 +295,6 @@
                 </div>
             </form>
 
-            <!-- Listado de Usuarios Existentes -->
             <div style="max-height: 220px; overflow-y: auto;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
                     <thead>
@@ -322,14 +313,11 @@
         </div>
     </div>
 
-    <!-- Muesca superior izquierda para denotar el menú -->
     <div class="menu-tab" title="Desplegar Menú">
         <i class="fa-solid fa-bars"></i>
     </div>
 
-    <!-- Barra superior con la fecha, banner de usuario activo y botones de administración / salida -->
     <div class="top-bar">
-        <!-- Banner del Usuario Conectado -->
         <div class="fecha-banner" id="user-session-banner" style="background: rgba(0, 0, 0, 0.3);">
             <i class="fa-solid fa-user-circle" style="color: #ffffff;"></i>
             <span id="logged-user-text">Cargando usuario...</span>
@@ -339,11 +327,9 @@
             <i class="fa-regular fa-calendar-days" style="color: #ffffff;"></i>
             <span id="date-text">Cargando fecha...</span>
         </div>
-        <!-- Botón de gestión de usuarios visible solo para Administrador -->
         <button id="admin-panel-btn" onclick="abrirPanelAdmin()" class="top-btn" style="display: none;" title="Gestionar Usuarios">
             <i class="fa-solid fa-users-gear"></i> Usuarios
         </button>
-        <!-- Botón de bitácora visible solo para Administrador -->
         <button id="admin-logs-btn" onclick="descargarReporteActividad()" class="top-btn" style="display: none; background: #2563eb;" title="Descargar Reporte de Actividad">
             <i class="fa-solid fa-file-excel"></i> Bitácora
         </button>
@@ -352,7 +338,6 @@
         </button>
     </div>
 
-    <!-- Menú lateral izquierdo desplegable por Hover -->
     <div class="menu">
         <div class="nav-links" id="nav-menu">
             <a data-target="frame-Presentacion" class="active"><i class="fa-solid fa-id-card" style="width: 20px;"></i> Presentación</a>
@@ -392,7 +377,6 @@
         </div>
     </div>
 
-    <!-- Contenedor con iframes -->
     <div class="content-container">
         <iframe id="frame-Presentacion" class="active-frame" src="Presentacion.html"></iframe>
         <iframe id="frame-resumen" src="Resumen Operativo TAX.html"></iframe>
@@ -408,9 +392,6 @@
     </div>
 
     <script>
-        /* ==========================================================================
-           SISTEMA DE BITÁCORA Y AUDITORÍA DE ACTIVIDAD
-           ========================================================================== */
         function registrarActividad(accion) {
             const usuarioActual = localStorage.getItem('auth_user') || 'Desconocido';
             const logs = JSON.parse(localStorage.getItem('system_logs') || '[]');
@@ -449,9 +430,6 @@
             registrarActividad('Descargó el reporte de bitácora de actividad');
         }
 
-        /* ==========================================================================
-           AUTENTICACIÓN Y ROLES
-           ========================================================================== */
         function iniciarSesionExitosa(rolSeleccionado, nombreUsuario) {
             const tokenSeguro = btoa(rolSeleccionado + "|" + Date.now()); 
             localStorage.setItem('auth_role', tokenSeguro);
@@ -473,15 +451,16 @@
             }
         }
 
-        // Inicializar base de usuarios por defecto
+        // Inicializar o actualizar usuarios base asegurando formato correcto
         function inicializarUsuariosBase() {
-            if (!localStorage.getItem('system_users')) {
-                const usuariosDefault = [
+            let users = JSON.parse(localStorage.getItem('system_users') || '[]');
+            if (users.length === 0) {
+                users = [
                     { user: 'admin', pass: 'Estafeta2026*', role: 'admin' },
                     { user: 'gerente', pass: 'gerente123', role: 'manager' },
                     { user: 'usuario', pass: 'usuario123', role: 'user' }
                 ];
-                localStorage.setItem('system_users', JSON.stringify(usuariosDefault));
+                localStorage.setItem('system_users', JSON.stringify(users));
             }
         }
         inicializarUsuariosBase();
@@ -509,9 +488,6 @@
             location.reload();
         }
 
-        /* ==========================================================================
-           VALIDACIÓN DE SEGURIDAD Y RESTRICCIONES POR ROL
-           ========================================================================== */
         window.addEventListener('DOMContentLoaded', () => {
             const encodedRole = localStorage.getItem('auth_role');
             const loggedUser = localStorage.getItem('auth_user');
@@ -540,16 +516,13 @@
                 return;
             }
 
-            // Mostrar el nombre y rol del usuario actual en el banner superior
             let roleBadge = 'Usuario';
             if (rol === 'admin') roleBadge = 'Administrador';
             else if (rol === 'manager') roleBadge = 'Gerente';
 
             document.getElementById('logged-user-text').innerHTML = `<b>${loggedUser}</b> <span style="font-size:10px; opacity:0.8; font-weight:normal;">(${roleBadge})</span>`;
-
             document.getElementById('auth-modal').style.display = 'none';
 
-            // Control de Inactividad (30 minutos)
             let inactivityTimer;
             const maxInactivityMinutes = 30;
 
@@ -569,18 +542,15 @@
             });
             resetInactivityTimer();
 
-            // REGLAS DE RESTRICCIÓN SEGÚN EL PERFIL:
             if (rol === 'user') {
-                console.log("Aplicando restricciones completas para perfil Usuario.");
                 document.addEventListener('contextmenu', e => e.preventDefault());
                 document.addEventListener('selectstart', e => e.preventDefault());
                 document.addEventListener('copy', e => e.preventDefault());
             } 
             else if (rol === 'manager') {
-                console.log("Perfil Gerente activo: Sin bloqueos de selección o copiado.");
+                // Gerente libre de bloqueos
             } 
             else if (rol === 'admin') {
-                console.warn("Modo Administrador: Acceso y control total.");
                 const adminBtn = document.getElementById('admin-panel-btn');
                 const adminLogsBtn = document.getElementById('admin-logs-btn');
                 if (adminBtn) adminBtn.style.display = 'flex';
@@ -588,7 +558,6 @@
             }
         });
 
-        // Funciones del Panel de Gestión de Usuarios (Admin)
         function abrirPanelAdmin() {
             renderizarTablaUsuarios();
             document.getElementById('admin-modal').style.display = 'flex';
@@ -708,7 +677,6 @@
             document.getElementById('form-eye-icon').className = 'fa-solid fa-eye';
         }
 
-        // Lógica de Navegación del Menú
         const navLinks = document.querySelectorAll('#nav-menu a');
         const frames = document.querySelectorAll('.content-container iframe');
         
