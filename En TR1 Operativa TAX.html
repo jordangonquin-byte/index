@@ -1,0 +1,2292 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Embarque TR1</title>
+    <!-- Tailwind CSS para diseño moderno y limpio -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- SheetJS para procesar Excel en el cliente -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Chart.js para visualizaciones -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome para iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --estafeta-red: #DA291C;
+            --estafeta-dark: #222222;
+        }
+        .bg-estafeta { background-color: var(--estafeta-red); }
+        .text-estafeta { color: var(--estafeta-red); }
+        .border-estafeta { border-color: var(--estafeta-red); }
+        
+        .top-bar { 
+            display: flex; 
+            justify-content: flex-end; 
+            align-items: center;
+            background: #DA291C; /* Rojo Estafeta */
+            padding: 10px 20px;
+        }
+
+        /* Estilo multiselect flotante inferior izquierdo para Plaza Destino */
+        .floating-plaza-container {
+            position: fixed;
+            bottom: 25px;
+            left: 25px;
+            background-color: #FFFFFF;
+            color: var(--estafeta-dark);
+            padding: 10px 18px;
+            border-radius: 30px;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 9999;
+            transition: all 0.3s ease;
+        }
+        .floating-plaza-container:hover {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+            transform: translateY(-2px);
+        }
+        .floating-plaza-container.hidden {
+            display: none !important;
+        }
+
+        /* Estilos multiselect genéricos */
+        .custom-multiselect { position: relative; display: inline-block; }
+        .multiselect-header { padding: 6px 12px; border-radius: 6px; border: 1px solid #CBD5E1; background: white; font-size: 13px; color: var(--estafeta-dark); cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; min-width: 180px; }
+        
+        .multiselect-dropdown { 
+            position: fixed; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%) scale(0.95);
+            width: 380px;
+            max-width: 90vw;
+            background: white; 
+            border: 1px solid #CBD5E1; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25); 
+            z-index: 999999; 
+            display: none; 
+            padding: 20px;
+            opacity: 0;
+            transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .multiselect-dropdown.show { 
+            display: block; 
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+        
+        .modal-backdrop {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: 999988;
+            display: none;
+            backdrop-filter: blur(2px);
+        }
+        .modal-backdrop.show { display: block; }
+
+        .modal-title-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-weight: 700;
+            font-size: 15px;
+            color: var(--estafeta-dark);
+            border-bottom: 1px solid #E2E8F0;
+            padding-bottom: 8px;
+        }
+        .modal-close-x {
+            cursor: pointer;
+            color: #555;
+            font-size: 16px;
+            padding: 4px;
+        }
+        .modal-close-x:hover { color: var(--estafeta-red); }
+
+        .multiselect-search-box {
+            width: 100%;
+            padding: 8px 12px;
+            margin-bottom: 12px;
+            border: 1px solid #CBD5E1;
+            border-radius: 6px;
+            font-size: 13px;
+            outline: none;
+        }
+        .multiselect-search-box:focus { border-color: var(--estafeta-red); }
+
+        .multiselect-actions { display: flex; justify-content: space-between; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid #E2E8F0; font-size: 12px; }
+        .multiselect-actions span { color: var(--estafeta-red); cursor: pointer; font-weight: 500; }
+        .multiselect-actions span:hover { text-decoration: underline; }
+        
+        .multiselect-options-list { max-height: 250px; overflow-y: auto; margin-bottom: 15px; }
+        .multiselect-option { display: flex; align-items: center; gap: 8px; padding: 8px; font-size: 13px; cursor: pointer; border-radius: 4px; }
+        .multiselect-option:hover { background-color: #F8FAFC; }
+        .multiselect-option input { cursor: pointer; width: 16px; height: 16px; accent-color: var(--estafeta-red); }
+
+        .modal-apply-btn {
+            width: 100%;
+            background-color: var(--estafeta-red);
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .modal-apply-btn:hover { background-color: #b00e14; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans text-gray-800 min-h-screen flex flex-col">
+
+    <div class="modal-backdrop" id="modal-backdrop" onclick="closeAllModals()"></div>
+
+    <!-- Modal desplegable para Plaza Destino -->
+    <div class="multiselect-dropdown" id="plaza-multiselect-dropdown-box">
+        <div class="modal-title-bar">
+            <span>Filtrar Plaza Destino</span>
+            <i class="fa-solid fa-xmark modal-close-x" onclick="closeAllModals()"></i>
+        </div>
+        <input type="text" class="multiselect-search-box" id="search-plaza" placeholder="Buscar plaza..." onkeyup="filterMultiselectOptions('plaza-multiselect-options-container', 'search-plaza')">
+        <div class="multiselect-actions">
+            <span onclick="selectAllPlazas(true)">Seleccionar todas</span>
+            <span onclick="selectAllPlazas(false)">Ninguna</span>
+        </div>
+        <div class="multiselect-options-list" id="plaza-multiselect-options-container"></div>
+        <button class="modal-apply-btn" onclick="closeAllModals()">Aplicar Filtro</button>
+    </div>
+
+    <!-- Header Corporativo Estafeta con top-bar integrada -->
+    <header class="top-bar text-white shadow-md border-b-4 border-[#222222] w-full">
+        <div class="max-w-7xl mx-auto px-4 py-2 flex flex-col md:flex-row justify-between items-center gap-4 w-full">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white text-[#DA291C] font-black text-2xl px-3 py-1 rounded tracking-wider shadow">ESTAFETA</div>
+                <div>
+                    <h1 class="text-xl font-bold">Embarque TR1</h1>
+                    <p class="text-xs text-white/80">Procesamiento local y seguro en navegador</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <div class="relative">
+                    <button onclick="document.getElementById('excel-file-header').click()" class="bg-transparent hover:bg-white/10 text-white border border-white/40 px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2 cursor-pointer">
+                        <i class="fa-solid fa-file-excel text-emerald-300"></i> Cargar / Arrastrar Excel
+                    </button>
+                    <input type="file" id="excel-file-header" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileSelect(event)">
+                </div>
+                <button onclick="resetFilters()" class="bg-white hover:bg-gray-100 text-[#DA291C] px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2 cursor-pointer shadow-sm">
+                    <i class="fa-solid fa-rotate-right"></i> Limpiar Filtros
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <input type="file" id="excel-file" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileSelect(event)">
+
+    <!-- Contenido Principal -->
+    <main id="main-dashboard" class="max-w-7xl mx-auto px-4 py-6 w-full flex-grow hidden space-y-6">
+
+        <!-- Barra de Slicers / Filtros Globales -->
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 space-y-4">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+                <h3 class="text-sm font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fa-solid fa-filter text-[#DA291C]"></i> Filtros dinamicos
+                </h3>
+                <div id="active-filters" class="flex flex-wrap gap-2 items-center">
+                    <span class="text-xs bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full border">Sin filtros activos</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                <!-- Slicer 1: Dropdown Multiselect UT -->
+                <div class="relative" id="ut-dropdown-container">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Unidad de Transporte (UT)</label>
+                    <button type="button" onclick="toggleUTDropdown()" class="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 text-left text-sm flex justify-between items-center focus:ring-2 focus:ring-[#DA291C] focus:outline-none cursor-pointer">
+                        <span id="ut-dropdown-label" class="text-gray-700 truncate">Seleccionar UT(s)...</span>
+                        <i class="fa-solid fa-chevron-down text-xs text-gray-500"></i>
+                    </button>
+                    <div id="ut-dropdown-panel" class="hidden absolute z-50 mt-1 w-full bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto p-2">
+                        <div class="p-1 border-b border-gray-100 flex justify-between items-center text-xs mb-1 font-medium">
+                            <span class="font-bold text-gray-600">Filtrar por UT</span>
+                            <div class="space-x-2">
+                                <button type="button" onclick="selectAllUT(true)" class="text-red-600 hover:underline">Todos</button>
+                                <span class="text-gray-300">|</span>
+                                <button type="button" onclick="selectAllUT(false)" class="text-gray-500 hover:underline">Ninguno</button>
+                            </div>
+                        </div>
+                        <div id="ut-checkbox-list" class="space-y-1"></div>
+                    </div>
+                </div>
+
+                <!-- Slicer 2: Selector de Garantía -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Filtrar por Garantía</label>
+                    <select id="slicer-garantia" onchange="filterData()" class="w-full bg-gray-50 border border-gray-300 rounded-lg py-2 px-3 text-sm focus:ring-2 focus:ring-[#DA291C] focus:outline-none">
+                        <option value="">Todas las garantías</option>
+                    </select>
+                </div>
+
+                <!-- Slicer 3: Buscador General Inteligente -->
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Búsqueda Rápida Global</label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400"><i class="fa-solid fa-search"></i></span>
+                        <input type="text" id="search-general" placeholder="Guía, cliente, plaza..." onkeyup="filterData()" class="pl-9 pr-4 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[#DA291C] focus:outline-none w-full">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPIs Principales -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-[#DA291C] transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                <div class="flex items-center justify-between">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Total de Guías</p>
+                    <div class="w-9 h-9 rounded-full bg-red-50 flex items-center justify-center text-[#DA291C]">
+                        <i class="fa-solid fa-box-archive text-sm"></i>
+                    </div>
+                </div>
+                <h3 id="kpi-total" class="text-2xl font-black text-gray-800 mt-1">0</h3>
+                <span class="text-xs text-green-600 font-medium mt-2 inline-block"><i class="fa-solid fa-arrow-trend-up mr-1"></i> Filtradas del total</span>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-blue-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                <div class="flex items-center justify-between">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Promedio Horas Sin Movimiento</p>
+                    <div class="w-9 h-9 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                        <i class="fa-solid fa-clock text-sm"></i>
+                    </div>
+                </div>
+                <h3 id="kpi-horas" class="text-2xl font-black text-gray-800 mt-1">0 hrs</h3>
+                <span class="text-xs text-gray-500 font-medium mt-2 inline-block">Tiempo promedio en tránsito</span>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-amber-500 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                <div class="flex items-center justify-between">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Con UT Asignada</p>
+                    <div class="w-9 h-9 rounded-full bg-amber-50 flex items-center justify-center text-amber-600">
+                        <i class="fa-solid fa-truck text-sm"></i>
+                    </div>
+                </div>
+                <h3 id="kpi-ut" class="text-2xl font-black text-gray-800 mt-1">0</h3>
+                <span class="text-xs text-amber-600 font-medium mt-2 inline-block">Unidades de Transporte registradas</span>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-purple-600 transition-all duration-300 hover:shadow-lg hover:-translate-y-1">
+                <div class="flex items-center justify-between">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Plazas de Destino Únicas</p>
+                    <div class="w-9 h-9 rounded-full bg-purple-50 flex items-center justify-center text-purple-600">
+                        <i class="fa-solid fa-map-location-dot text-sm"></i>
+                    </div>
+                </div>
+                <h3 id="kpi-plazas" class="text-2xl font-black text-gray-800 mt-1">0</h3>
+                <span class="text-xs text-purple-600 font-medium mt-2 inline-block">Destinos activos</span>
+            </div>
+        </div>
+
+        <!-- Gráficos Dinámicos -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col">
+                <h3 class="text-base font-bold text-gray-800 mb-3 flex items-center justify-between">
+                    <span><i class="fa-solid fa-chart-pie text-[#DA291C] mr-2"></i> Distribución por Garantía</span>
+                    <span class="text-xs text-gray-400 font-normal">Dinámico según Slicers</span>
+                </h3>
+                <div class="relative flex-grow h-72">
+                    <canvas id="chartGarantia"></canvas>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-200 flex flex-col">
+                <h3 class="text-base font-bold text-gray-800 mb-3 flex items-center justify-between">
+                    <span><i class="fa-solid fa-clock-rotate-left text-[#DA291C] mr-2"></i> Estatus de Vencimiento (V, VH, ET)</span>
+                    <span class="text-xs text-gray-400 font-normal">Dinámico según Slicers</span>
+                </h3>
+                <div class="relative flex-grow h-72">
+                    <canvas id="chartVencidosTiempo"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla: Reporte General de Paquetes -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="p-4 bg-gray-50 border-b border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                <h3 class="text-base font-bold text-gray-800"><i class="fa-solid fa-box text-[#DA291C] mr-2"></i> Reporte General de Paquetes</h3>
+                
+                <!-- BUSCADOR AVANZADO ESPECÍFICO DE LA TABLA -->
+                <div class="relative w-full md:w-72">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400"><i class="fa-solid fa-search text-xs"></i></span>
+                    <input type="text" id="reporte-search-input" placeholder="Búsqueda avanzada en reporte..." onkeyup="filterReporteTableSearch()" class="pl-8 pr-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-[#DA291C] focus:outline-none w-full shadow-sm">
+                </div>
+
+                <div class="flex items-center gap-3 w-full md:w-auto flex-wrap justify-end">
+                    <span id="reporte-paquetes-table-count" class="text-xs bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full font-medium whitespace-nowrap">0 registros</span>
+                    <button onclick="downloadReportePaquetesExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-sm">
+                        <i class="fa-solid fa-file-excel"></i> Descargar Excel
+                    </button>
+                </div>
+            </div>
+            
+            <div id="reporte-active-filters-bar" class="hidden px-4 py-2 bg-red-50 border-b border-red-100 flex items-center justify-between text-xs">
+                <div id="reporte-active-filters-desc" class="flex items-center gap-2 text-red-800 font-medium"></div>
+                <button onclick="clearReporteTableFilters()" class="text-red-700 hover:text-red-900 underline font-semibold cursor-pointer">Quitar filtros de tabla</button>
+            </div>
+
+            <div class="overflow-x-auto min-h-[145px]">
+                <table id="reporte-paquetes-table" class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-gray-100 text-gray-700 uppercase sticky top-0 z-10 font-semibold">
+                        <tr></tr>
+                    </thead>
+                    <tbody class="text-gray-600"></tbody>
+                </table>
+            </div>
+            <div id="reporte-paquetes-pagination" class="p-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-xs"></div>
+        </div>
+
+        <!-- Tabla: Rojos y Amarillos por UT -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="p-4 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <h3 class="text-base font-bold text-gray-800"><i class="fa-solid fa-triangle-exclamation text-amber-500 mr-2"></i> Rojos y Amarillos por UT</h3>
+                <div class="flex items-center gap-3 w-full sm:w-auto flex-wrap justify-end">
+                    <div id="rojos-amarillos-concentrado" class="text-xs bg-amber-50 text-amber-900 border border-amber-200 px-3 py-1.5 rounded-lg font-medium flex flex-wrap gap-2 items-center"></div>
+                    <span id="rojos-amarillos-table-count" class="text-xs bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full font-medium whitespace-nowrap">0 registros</span>
+                    <button onclick="downloadRojosAmarillosExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer shadow-sm">
+                        <i class="fa-solid fa-file-excel"></i> Descargar Excel
+                    </button>
+                </div>
+            </div>
+            
+            <div id="table-active-filters-bar" class="hidden px-4 py-2 bg-red-50 border-b border-red-100 flex items-center justify-between text-xs">
+                <div id="table-active-filters-desc" class="flex items-center gap-2 text-red-800 font-medium"></div>
+                <button onclick="clearTableFilters()" class="text-red-700 hover:text-red-900 underline font-semibold cursor-pointer">Quitar filtro de columna</button>
+            </div>
+
+            <div class="overflow-x-auto min-h-[145px]">
+                <table id="rojos-amarillos-ut-table" class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-gray-100 text-gray-700 uppercase sticky top-0 z-10 font-semibold">
+                        <tr></tr>
+                    </thead>
+                    <tbody class="text-gray-600"></tbody>
+                </table>
+            </div>
+            <div id="rojos-amarillos-pagination" class="p-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-xs"></div>
+        </div>
+
+        <!-- Tabla: Garantías por UT y su Porcentaje en la Carga -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="p-4 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <h3 class="text-base font-bold text-gray-800"><i class="fa-solid fa-percent text-[#DA291C] mr-2"></i> Garantías y Porcentaje de Carga por UT</h3>
+                <div class="flex items-center gap-3">
+                    <span id="garantia-table-count" class="text-xs bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full font-medium">0 registros</span>
+                </div>
+            </div>
+
+            <div id="garantia-active-filters-bar" class="hidden px-4 py-2 bg-red-50 border-b border-red-100 flex items-center justify-between text-xs">
+                <div id="garantia-active-filters-desc" class="flex items-center gap-2 text-red-800 font-medium"></div>
+                <button onclick="clearGarantiaTableFilters()" class="text-red-700 hover:text-red-900 underline font-semibold cursor-pointer">Quitar filtros de tabla</button>
+            </div>
+
+            <div class="overflow-x-auto min-h-[145px]">
+                <table id="garantia-ut-table" class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-gray-100 text-gray-700 uppercase sticky top-0 z-10 font-semibold">
+                        <tr>
+                            <th class="px-4 py-2">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="cursor-pointer select-none flex-grow flex items-center" onclick="sortGarantiaTable('ut')">
+                                        <span>UT (Unidad de Transporte)</span>
+                                        <span id="sort-icon-ut"><i class="fa-solid fa-sort text-gray-300 hover:text-gray-500 text-xs ml-1"></i></span>
+                                    </span>
+                                    <button onclick="openGarantiaColumnFilterModal('ut')" class="text-gray-500 hover:text-[#DA291C] p-1 rounded transition cursor-pointer" title="Filtrar UT">
+                                        <i class="fa-solid fa-filter text-xs"></i>
+                                    </button>
+                                </div>
+                            </th>
+                            <th class="px-4 py-2">
+                                <div class="flex items-center justify-between gap-2">
+                                    <span class="cursor-pointer select-none flex-grow flex items-center" onclick="sortGarantiaTable('garantia')">
+                                        <span>Garantía</span>
+                                        <span id="sort-icon-garantia"><i class="fa-solid fa-sort text-gray-300 hover:text-gray-500 text-xs ml-1"></i></span>
+                                    </span>
+                                    <button onclick="openGarantiaColumnFilterModal('garantia')" class="text-gray-500 hover:text-[#DA291C] p-1 rounded transition cursor-pointer" title="Filtrar Garantía">
+                                        <i class="fa-solid fa-filter text-xs"></i>
+                                    </button>
+                                </div>
+                            </th>
+                            <th class="px-4 py-2 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    <span class="cursor-pointer select-none flex items-center" onclick="sortGarantiaTable('count')">
+                                        <span>Cantidad de Garantías</span>
+                                        <span id="sort-icon-count"><i class="fa-solid fa-sort text-gray-300 hover:text-gray-500 text-xs ml-1"></i></span>
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="px-4 py-2 text-right">
+                                <div class="flex items-center justify-end gap-2">
+                                    <span class="cursor-pointer select-none flex items-center" onclick="sortGarantiaTable('percentage')">
+                                        <span>% Representación en Carga del UT</span>
+                                        <span id="sort-icon-percentage"><i class="fa-solid fa-sort text-gray-300 hover:text-gray-500 text-xs ml-1"></i></span>
+                                    </span>
+                                </div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-600"></tbody>
+                </table>
+            </div>
+            <div id="garantia-ut-pagination" class="p-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-xs"></div>
+        </div>
+
+        <!-- Tabla de Detalle de Guías Operativas -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div class="p-4 bg-gray-50 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <h3 class="text-base font-bold text-gray-800"><i class="fa-solid fa-table text-[#DA291C] mr-2"></i> Detalle de Guías Operativas</h3>
+                <div class="flex items-center gap-3 flex-wrap">
+                    <span id="table-count" class="text-xs bg-gray-200 text-gray-700 px-2.5 py-1 rounded-full font-medium">Mostrando 0 registros</span>
+                </div>
+            </div>
+            <div class="overflow-x-auto min-h-[145px]">
+                <table id="data-table" class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-gray-100 text-gray-700 uppercase sticky top-0 z-10 font-semibold"></thead>
+                    <tbody class="text-gray-600"></tbody>
+                </table>
+            </div>
+            <div id="data-table-pagination" class="p-3 bg-gray-50 border-t border-gray-200 flex justify-between items-center text-xs"></div>
+        </div>
+
+    </main>
+
+    <!-- Filtro flotante inferior izquierdo para Plaza Destino -->
+    <div class="floating-plaza-container hidden" id="floating-plaza-container">
+        <i class="fa-solid fa-map-location-dot" style="color: var(--estafeta-red);"></i>
+        <span style="font-size: 13px; font-weight: 600;">Plaza:</span>
+        <div class="custom-multiselect" id="plaza-multiselect">
+            <div class="multiselect-header" onclick="openModal('plaza-multiselect-dropdown-box', event)" style="min-width: 160px;">
+                <span id="plaza-multiselect-header-text">-- Todas las Plazas --</span>
+                <i class="fa-solid fa-chevron-down" style="font-size: 11px; color: #555;"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botón flotante inferior derecho para limpiar filtros -->
+    <button id="floating-reset-btn" onclick="resetFilters()" class="hidden fixed bottom-6 right-6 z-40 bg-[#DA291C] hover:bg-red-700 text-white px-4 py-3 rounded-full shadow-2xl font-semibold text-xs transition-all duration-300 flex items-center gap-2 cursor-pointer border-2 border-white">
+        <i class="fa-solid fa-rotate-right"></i> Limpiar Filtros
+    </button>
+
+    <!-- Modales -->
+    <div id="column-filter-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden border border-gray-200">
+            <div class="p-4 bg-[#222222] text-white flex justify-between items-center">
+                <h4 id="column-filter-title" class="text-sm font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-filter text-[#DA291C]"></i> Filtrar Columna
+                </h4>
+                <button onclick="closeColumnFilterModal()" class="text-gray-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 space-y-3">
+                <div class="relative">
+                    <input type="text" id="column-filter-search" placeholder="Buscar valor..." onkeyup="filterColumnModalValues()" class="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-[#DA291C] focus:outline-none">
+                </div>
+                <div class="flex justify-between items-center text-xs font-medium text-gray-500 px-1">
+                    <span>Seleccionar valores:</span>
+                    <div class="space-x-2">
+                        <button type="button" onclick="selectAllModalValues(true)" class="text-[#DA291C] hover:underline">Todos</button>
+                        <span>|</span>
+                        <button type="button" onclick="selectAllModalValues(false)" class="text-gray-500 hover:underline">Ninguno</button>
+                    </div>
+                </div>
+                <div id="column-filter-checkboxes" class="max-h-48 overflow-y-auto space-y-1 border border-gray-200 rounded-lg p-2 bg-gray-50 text-xs"></div>
+            </div>
+            <div class="p-3 bg-gray-50 border-t border-gray-200 flex justify-end gap-2">
+                <button onclick="closeColumnFilterModal()" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-300 cursor-pointer">Cancelar</button>
+                <button onclick="applyColumnFilterModal()" class="px-3 py-1.5 bg-[#DA291C] text-white rounded-lg text-xs font-semibold hover:bg-red-700 cursor-pointer">Aplicar Filtro</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="reporte-column-filter-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden border border-gray-200">
+            <div class="p-4 bg-[#222222] text-white flex justify-between items-center">
+                <h4 id="reporte-column-filter-title" class="text-sm font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-filter text-[#DA291C]"></i> Filtrar Columna Reporte
+                </h4>
+                <button onclick="closeReporteColumnFilterModal()" class="text-gray-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 space-y-3">
+                <div class="relative">
+                    <input type="text" id="reporte-column-filter-search" placeholder="Buscar valor..." onkeyup="filterReporteColumnModalValues()" class="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-[#DA291C] focus:outline-none">
+                </div>
+                <div class="flex justify-between items-center text-xs font-medium text-gray-500 px-1">
+                    <span>Seleccionar valores:</span>
+                    <div class="space-x-2">
+                        <button type="button" onclick="selectAllReporteModalValues(true)" class="text-[#DA291C] hover:underline">Todos</button>
+                        <span>|</span>
+                        <button type="button" onclick="selectAllReporteModalValues(false)" class="text-gray-500 hover:underline">Ninguno</button>
+                    </div>
+                </div>
+                <div id="reporte-column-filter-checkboxes" class="max-h-48 overflow-y-auto space-y-1 border border-gray-200 rounded-lg p-2 bg-gray-50 text-xs"></div>
+            </div>
+            <div class="p-3 bg-gray-50 border-t border-gray-200 flex justify-end gap-2">
+                <button onclick="closeReporteColumnFilterModal()" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-300 cursor-pointer">Cancelar</button>
+                <button onclick="applyReporteColumnFilterModal()" class="px-3 py-1.5 bg-[#DA291C] text-white rounded-lg text-xs font-semibold hover:bg-red-700 cursor-pointer">Aplicar Filtro</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="garantia-column-filter-modal" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-sm w-full overflow-hidden border border-gray-200">
+            <div class="p-4 bg-[#222222] text-white flex justify-between items-center">
+                <h4 id="garantia-column-filter-title" class="text-sm font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-filter text-[#DA291C]"></i> Filtrar Tabla Garantía
+                </h4>
+                <button onclick="closeGarantiaColumnFilterModal()" class="text-gray-400 hover:text-white cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-4 space-y-3">
+                <div class="relative">
+                    <input type="text" id="garantia-column-filter-search" placeholder="Buscar valor..." onkeyup="filterGarantiaColumnModalValues()" class="w-full bg-gray-50 border border-gray-300 rounded-lg px-3 py-1.5 text-xs focus:ring-2 focus:ring-[#DA291C] focus:outline-none">
+                </div>
+                <div class="flex justify-between items-center text-xs font-medium text-gray-500 px-1">
+                    <span>Seleccionar valores:</span>
+                    <div class="space-x-2">
+                        <button type="button" onclick="selectAllGarantiaModalValues(true)" class="text-[#DA291C] hover:underline">Todos</button>
+                        <span>|</span>
+                        <button type="button" onclick="selectAllGarantiaModalValues(false)" class="text-gray-500 hover:underline">Ninguno</button>
+                    </div>
+                </div>
+                <div id="garantia-column-filter-checkboxes" class="max-h-48 overflow-y-auto space-y-1 border border-gray-200 rounded-lg p-2 bg-gray-50 text-xs"></div>
+            </div>
+            <div class="p-3 bg-gray-50 border-t border-gray-200 flex justify-end gap-2">
+                <button onclick="closeGarantiaColumnFilterModal()" class="px-3 py-1.5 bg-gray-200 text-gray-700 rounded-lg text-xs font-semibold hover:bg-gray-300 cursor-pointer">Cancelar</button>
+                <button onclick="applyGarantiaColumnFilterModal()" class="px-3 py-1.5 bg-[#DA291C] text-white rounded-lg text-xs font-semibold hover:bg-red-700 cursor-pointer">Aplicar Filtro</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer oculto visualmente -->
+    <footer class="mt-auto bg-gray-200 text-gray-600 text-center py-4 text-xs border-t border-gray-300 hidden">
+        Estafeta Mexicana - Dashboard Operativo Local &bull; Diseñado con altos estándares de visualización de datos.
+    </footer>
+
+    <!-- Lógica de Procesamiento y Dashboard -->
+    <script>
+        // Verificación de Autenticación, Decodificación Base64 y Control de Inactividad (30 min)
+        window.addEventListener('DOMContentLoaded', () => {
+            // 1. Consultar el rol activo codificado guardado en el navegador
+            const encodedRole = localStorage.getItem('auth_role');
+            
+            if (!encodedRole) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            let rol = '';
+            try {
+                // Decodificamos el Base64 para evitar modificaciones simples desde la consola
+                const decoded = atob(encodedRole);
+                const parts = decoded.split('|');
+                if (parts.length >= 1) {
+                    rol = parts[0];
+                }
+            } catch (e) {
+                // Si el valor fue alterado y no es un Base64 válido, redirigir al login
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            if (!rol) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            // 2. Control de Inactividad (Cierre automático de sesión a los 30 minutos)
+            let inactivityTimer;
+            const maxInactivityMinutes = 30; // Puedes ajustar los minutos aquí
+
+            function resetInactivityTimer() {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(() => {
+                    alert("Su sesión ha expirado por inactividad.");
+                    localStorage.removeItem('auth_role');
+                    window.location.href = 'Panel de Control Operativo.html';
+                }, maxInactivityMinutes * 60 * 1000);
+            }
+
+            // Registrar eventos del usuario para reiniciar el contador de inactividad
+            ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
+                window.addEventListener(event, resetInactivityTimer);
+            });
+            resetInactivityTimer();
+
+            // 3. Aplicar restricciones de seguridad si NO es administrador
+            if (rol !== 'admin') {
+                console.log("Aplicando medidas de seguridad en este módulo.");
+                
+                // Bloquear Clic Secundario
+                document.addEventListener('contextmenu', e => e.preventDefault());
+
+                // Bloquear Selección de Texto
+                document.addEventListener('selectstart', e => e.preventDefault());
+
+                // Bloquear Copiar
+                document.addEventListener('copy', e => e.preventDefault());
+            } else {
+                console.warn("Modo Administrador: Módulo libre sin restricciones.");
+            }
+        });
+
+        let rawData = [];
+        let filteredData = [];
+        let columns = [];
+        let selectedUTs = new Set();
+        let selectedPlazas = new Set();
+        let chartGarantiaInstance = null;
+        let chartVencidosTiempoInstance = null;
+
+        let tableColumnFilters = {
+            cpCol: null,
+            vencCol: null
+        };
+        let currentModalColumnKey = null;
+
+        let reporteTableFilters = {
+            cpCol: null,
+            garantiaCol: null,
+            vencCol: null,
+            search: ''
+        };
+        let currentReporteModalKey = null;
+
+        let reporteTableSort = {
+            column: null,
+            direction: 'asc'
+        };
+
+        let garantiaTableSort = {
+            column: null,
+            direction: 'asc'
+        };
+        let garantiaTableFilters = {
+            utCol: null,
+            garantiaCol: null
+        };
+        let currentGarantiaModalKey = null;
+
+        let rojosAmarillosSort = {
+            column: null,      
+            direction: 'asc'   
+        };
+
+        let pageReportePaquetes = 1;
+        let pageRojosAmarillos = 1;
+        let pageGarantiaUT = 1;
+        let pageGuiasOperativas = 1;
+        const rowsPerPage = 10;
+        const minRows = 3;
+
+        function validarArchivo(encabezados) {
+            if (!encabezados || encabezados.length === 0) return false;
+            const normalizados = encabezados.map(h => String(h).trim().toLowerCase());
+            return normalizados.includes("trackingnumber") && 
+                   normalizados.includes("frecuencydays") && 
+                   normalizados.includes("warrantycompliancedatetime (copia)");
+        }
+
+        window.addEventListener('click', function(e) {
+            const container = document.getElementById('ut-dropdown-container');
+            if (container && !container.contains(e.target)) {
+                document.getElementById('ut-dropdown-panel').classList.add('hidden');
+            }
+        });
+
+        function toggleUTDropdown() {
+            const panel = document.getElementById('ut-dropdown-panel');
+            panel.classList.toggle('hidden');
+        }
+
+        function openModal(modalId, e) {
+            if (e) e.stopPropagation();
+            closeAllModals();
+            const modal = document.getElementById(modalId);
+            const backdrop = document.getElementById('modal-backdrop');
+            if (modal && backdrop) {
+                modal.classList.add('show');
+                backdrop.classList.add('show');
+            }
+        }
+
+        function closeAllModals() {
+            document.querySelectorAll('.multiselect-dropdown').forEach(m => m.classList.remove('show'));
+            const backdrop = document.getElementById('modal-backdrop');
+            if (backdrop) backdrop.classList.remove('show');
+        }
+
+        function filterMultiselectOptions(containerId, searchInputId) {
+            const query = document.getElementById(searchInputId).value.toLowerCase().trim();
+            const container = document.getElementById(containerId);
+            const options = container.querySelectorAll('.multiselect-option');
+            
+            options.forEach(opt => {
+                const text = opt.textContent.toLowerCase();
+                if (text.includes(query)) {
+                    opt.style.display = 'flex';
+                } else {
+                    opt.style.display = 'none';
+                }
+            });
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            if (files.length) handleFiles(files[0]);
+        }
+
+        function handleFiles(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+
+                const headerRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                const headerArray = headerRows.length > 0 ? headerRows[0] : [];
+
+                if (!validarArchivo(headerArray)) {
+                    alert("El archivo no contiene los encabezados requeridos (Trackingnumber, Frecuencydays, Warrantycompliancedatetime (copia)).");
+                    return;
+                }
+
+                const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                if (json.length > 0) {
+                    columns = Object.keys(json[0]);
+                    rawData = json.filter(row => String(row[columns[0]] || '').toLowerCase() !== 'total general' && String(row[columns[0]] || '').toLowerCase() !== 'total');
+                    filteredData = [...rawData];
+
+                    document.getElementById('main-dashboard').classList.remove('hidden');
+                    document.getElementById('floating-plaza-container').classList.remove('hidden');
+
+                    initUTDropdownOptions();
+                    initPlazaDropdownOptions();
+                    initGarantiaSlicer();
+                    updateDashboard();
+                } else {
+                    alert("El archivo Excel está vacío o no tiene el formato correcto.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function getUTColumn() {
+            return columns[34] || columns.find(c => c.toLowerCase() === 'ut');
+        }
+
+        function getPlazaColumn() {
+            return columns[6] || columns.find(c => c.toLowerCase().includes('plaza destino'));
+        }
+
+        function getSemaforoColumn() {
+            return columns[16] || columns.find(c => {
+                const lower = c.toLowerCase();
+                return lower.includes('semaforo') || lower.includes('estatus') || lower.includes('color') || lower.includes('alerta') || lower.includes('vencimiento');
+            });
+        }
+
+        function initUTDropdownOptions() {
+            const utCol = getUTColumn();
+            const listContainer = document.getElementById('ut-checkbox-list');
+            if (!utCol) {
+                listContainer.innerHTML = '<span class="text-xs text-gray-400 p-2">Columna UT no encontrada</span>';
+                return;
+            }
+
+            const uniqueUTs = [...new Set(rawData.map(row => String(row[utCol] || '').trim()))].filter(Boolean).sort();
+            selectedUTs = new Set(uniqueUTs);
+
+            listContainer.innerHTML = uniqueUTs.map(ut => `
+                <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-50 rounded cursor-pointer text-xs">
+                    <input type="checkbox" value="${ut}" checked onchange="handleUTCheckboxChange(this)" class="rounded text-[#DA291C] focus:ring-[#DA291C]">
+                    <span class="text-gray-700">${ut}</span>
+                </label>
+            `).join('');
+
+            updateUTDropdownLabel();
+        }
+
+        function initPlazaDropdownOptions() {
+            const plazaCol = getPlazaColumn();
+            const container = document.getElementById('plaza-multiselect-options-container');
+            if (!container) return;
+
+            container.innerHTML = '';
+            if (!plazaCol) {
+                container.innerHTML = '<span class="text-xs text-gray-400 p-2">Columna Plaza Destino no encontrada</span>';
+                return;
+            }
+
+            const uniquePlazas = [...new Set(rawData.map(row => String(row[plazaCol] || '').trim()))].filter(Boolean).sort();
+            selectedPlazas = new Set(uniquePlazas);
+
+            container.innerHTML = uniquePlazas.map(p => `
+                <label class="multiselect-option">
+                    <input type="checkbox" value="${p}" checked onchange="updatePlazaMultiselectHeaderText(); filterData();">
+                    <span>Plaza: ${p}</span>
+                </label>
+            `).join('');
+
+            updatePlazaMultiselectHeaderText();
+        }
+
+        function selectAllPlazas(select) {
+            const container = document.getElementById('plaza-multiselect-options-container');
+            if (!container) return;
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                if (cb.closest('.multiselect-option').style.display !== 'none') {
+                    cb.checked = select;
+                    if (select) selectedPlazas.add(cb.value);
+                    else selectedPlazas.delete(cb.value);
+                }
+            });
+            updatePlazaMultiselectHeaderText();
+            filterData();
+        }
+
+        function updatePlazaMultiselectHeaderText() {
+            const container = document.getElementById('plaza-multiselect-options-container');
+            if (!container) return;
+            const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+            const visibleCheckboxes = Array.from(checkboxes).filter(cb => cb.closest('.multiselect-option').style.display !== 'none');
+            const checkedCount = visibleCheckboxes.filter(cb => cb.checked).length;
+            const headerText = document.getElementById('plaza-multiselect-header-text');
+
+            if (checkedCount === 0) {
+                headerText.innerText = '-- Ninguna plaza --';
+                selectedPlazas.clear();
+            } else if (checkedCount === checkboxes.length) {
+                headerText.innerText = '-- Todas las Plazas --';
+                checkboxes.forEach(cb => selectedPlazas.add(cb.value));
+            } else if (checkedCount === 1) {
+                const selectedCb = visibleCheckboxes.find(cb => cb.checked);
+                headerText.innerText = `Plaza: ${selectedCb ? selectedCb.value : ''}`;
+                selectedPlazas.clear();
+                if (selectedCb) selectedPlazas.add(selectedCb.value);
+            } else {
+                headerText.innerText = `${checkedCount} plazas seleccionadas`;
+                selectedPlazas.clear();
+                checkboxes.forEach(cb => {
+                    if (cb.checked) selectedPlazas.add(cb.value);
+                });
+            }
+        }
+
+        function initGarantiaSlicer() {
+            let garCol = columns.find(c => c.toLowerCase().includes('garantía') && !c.toLowerCase().includes('grupo') && !c.toLowerCase().includes('segmento'));
+            if (!garCol) garCol = columns[13] || columns[0];
+
+            const uniqueGar = [...new Set(rawData.map(row => String(row[garCol] || '').trim()))].filter(Boolean).sort();
+            const select = document.getElementById('slicer-garantia');
+            select.innerHTML = '<option value="">Todas las garantías</option>' + uniqueGar.map(g => `<option value="${g}">${g}</option>`).join('');
+        }
+
+        function handleUTCheckboxChange(checkbox) {
+            if (checkbox.checked) {
+                selectedUTs.add(checkbox.value);
+            } else {
+                selectedUTs.delete(checkbox.value);
+            }
+            updateUTDropdownLabel();
+            filterData();
+        }
+
+        function selectAllUT(select) {
+            const checkboxes = document.querySelectorAll('#ut-checkbox-list input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                cb.checked = select;
+                if (select) selectedUTs.add(cb.value);
+                else selectedUTs.delete(cb.value);
+            });
+            updateUTDropdownLabel();
+            filterData();
+        }
+
+        function updateUTDropdownLabel() {
+            const label = document.getElementById('ut-dropdown-label');
+            const totalCheckboxes = document.querySelectorAll('#ut-checkbox-list input[type="checkbox"]').length;
+            
+            if (selectedUTs.size === 0) {
+                label.innerText = 'Ningún UT seleccionado';
+            } else if (selectedUTs.size === totalCheckboxes) {
+                label.innerText = 'Todos los UTs seleccionados';
+            } else {
+                label.innerText = `${selectedUTs.size} UT(s) seleccionados`;
+            }
+        }
+
+        function updateDashboard() {
+            updateKPIs();
+            renderCharts();
+            renderReportePaquetesTable();
+            renderRojosAmarillosUTTable();
+            renderGarantiaUTTable();
+            renderTable();
+            renderActiveFilters();
+            updateFloatingResetButton();
+        }
+
+        function updateKPIs() {
+            document.getElementById('kpi-total').innerText = filteredData.length.toLocaleString();
+            
+            let horasCol = columns.find(c => c.toLowerCase().includes('horas sin movimiento'));
+            if (horasCol && filteredData.length > 0) {
+                let sum = filteredData.reduce((acc, row) => acc + (Number(row[horasCol]) || 0), 0);
+                let avg = Math.round(sum / filteredData.length);
+                document.getElementById('kpi-horas').innerText = avg.toLocaleString() + ' hrs';
+            } else {
+                document.getElementById('kpi-horas').innerText = '0 hrs';
+            }
+
+            let utCol = getUTColumn();
+            if (utCol) {
+                let countUT = filteredData.filter(row => row[utCol] !== undefined && row[utCol] !== "" && row[utCol] !== null).length;
+                document.getElementById('kpi-ut').innerText = countUT.toLocaleString();
+            } else {
+                document.getElementById('kpi-ut').innerText = '0';
+            }
+
+            let plazaCol = getPlazaColumn();
+            if (plazaCol) {
+                let uniquePlazas = new Set(filteredData.map(row => row[plazaCol])).size;
+                document.getElementById('kpi-plazas').innerText = uniquePlazas.toLocaleString();
+            } else {
+                document.getElementById('kpi-plazas').innerText = '0';
+            }
+        }
+
+        function renderCharts() {
+            const estafetaRed = '#DA291C';
+
+            let garCol = columns.find(c => c.toLowerCase().includes('garantía') && !c.toLowerCase().includes('grupo') && !c.toLowerCase().includes('segmento'));
+            if (!garCol) garCol = columns[13] || columns[0];
+
+            const garCounts = {};
+            filteredData.forEach(row => {
+                let val = row[garCol] || 'No especificado';
+                garCounts[val] = (garCounts[val] || 0) + 1;
+            });
+
+            const garLabels = Object.keys(garCounts);
+            const garData = Object.values(garCounts);
+
+            const ctxGar = document.getElementById('chartGarantia').getContext('2d');
+            if (chartGarantiaInstance) chartGarantiaInstance.destroy();
+            chartGarantiaInstance = new Chart(ctxGar, {
+                type: 'bar',
+                data: {
+                    labels: garLabels,
+                    datasets: [{
+                        label: 'Número de Guías',
+                        data: garData,
+                        backgroundColor: estafetaRed,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+
+            let semCol = getSemaforoColumn();
+            const vencCounts = { 'Vencidos': 0, 'Vence Hoy': 0, 'En Tiempo': 0, 'Otros': 0 };
+
+            filteredData.forEach(row => {
+                let val = String(row[semCol] || '').trim().toLowerCase();
+                if (val.includes('rojo') || val.includes('vencido')) {
+                    vencCounts['Vencidos']++;
+                } else if (val.includes('amarillo') || val.includes('hoy')) {
+                    vencCounts['Vence Hoy']++;
+                } else if (val.includes('verde') || val.includes('tiempo')) {
+                    vencCounts['En Tiempo']++;
+                } else {
+                    vencCounts['Otros']++;
+                }
+            });
+
+            const vencLabels = Object.keys(vencCounts);
+            const vencData = Object.values(vencCounts);
+            const vencColors = ['#DC2626', '#D97706', '#16A34A', '#9CA3AF'];
+
+            const ctxVenc = document.getElementById('chartVencidosTiempo').getContext('2d');
+            if (chartVencidosTiempoInstance) chartVencidosTiempoInstance.destroy();
+            chartVencidosTiempoInstance = new Chart(ctxVenc, {
+                type: 'bar',
+                data: {
+                    labels: vencLabels,
+                    datasets: [{
+                        label: 'Cantidad de Guías',
+                        data: vencData,
+                        backgroundColor: vencColors,
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                        x: { grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function sortReporteTable(colKey) {
+            if (reporteTableSort.column === colKey) {
+                reporteTableSort.direction = reporteTableSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                reporteTableSort.column = colKey;
+                reporteTableSort.direction = 'asc';
+            }
+            renderReportePaquetesTable();
+        }
+
+        function getReporteSortIcon(colKey) {
+            if (reporteTableSort.column !== colKey) {
+                return '<i class="fa-solid fa-sort text-gray-300 hover:text-gray-500 text-xs ml-1"></i>';
+            }
+            return reporteTableSort.direction === 'asc' 
+                ? '<i class="fa-solid fa-sort-up text-[#DA291C] text-xs ml-1"></i>' 
+                : '<i class="fa-solid fa-sort-down text-[#DA291C] text-xs ml-1"></i>';
+        }
+
+        function filterReporteTableSearch() {
+            const val = document.getElementById('reporte-search-input').value.toLowerCase().trim();
+            reporteTableFilters.search = val;
+            pageReportePaquetes = 1;
+            renderReportePaquetesTable();
+            updateFloatingResetButton();
+        }
+
+        function openReporteColumnFilterModal(colKey) {
+            currentReporteModalKey = colKey;
+            const modal = document.getElementById('reporte-column-filter-modal');
+            const titleEl = document.getElementById('reporte-column-filter-title');
+            const checkboxesContainer = document.getElementById('reporte-column-filter-checkboxes');
+            document.getElementById('reporte-column-filter-search').value = '';
+
+            const colI = columns[8] || 'C. P.';
+            const semCol = getSemaforoColumn() || 'Vencimiento';
+            let garCol = columns.find(c => c.toLowerCase().includes('garantía') && !c.toLowerCase().includes('grupo') && !c.toLowerCase().includes('segmento')) || columns[13] || 'Garantía';
+
+            let colNameDisplay = '';
+            if (colKey === 'cp') colNameDisplay = colI;
+            else if (colKey === 'garantia') colNameDisplay = garCol;
+            else if (colKey === 'venc') colNameDisplay = semCol;
+
+            titleEl.innerHTML = `<i class="fa-solid fa-filter text-[#DA291C]"></i> Filtrar Columna: ${colNameDisplay}`;
+
+            let baseRows = [...filteredData];
+            if (colKey !== 'cp' && reporteTableFilters.cpCol) {
+                baseRows = baseRows.filter(r => reporteTableFilters.cpCol.has(String(r[colI] || '').trim()));
+            }
+            if (colKey !== 'garantia' && reporteTableFilters.garantiaCol) {
+                baseRows = baseRows.filter(r => reporteTableFilters.garantiaCol.has(String(r[garCol] || '').trim()));
+            }
+            if (colKey !== 'venc' && reporteTableFilters.vencCol) {
+                baseRows = baseRows.filter(r => reporteTableFilters.vencCol.has(String(r[semCol] || '').trim()));
+            }
+
+            const targetColKey = (colKey === 'cp') ? colI : (colKey === 'garantia' ? garCol : semCol);
+            const uniqueValues = [...new Set(baseRows.map(row => String(row[targetColKey] || '').trim()))].filter(Boolean).sort();
+
+            const currentActiveSet = (colKey === 'cp') ? reporteTableFilters.cpCol : (colKey === 'garantia' ? reporteTableFilters.garantiaCol : reporteTableFilters.vencCol);
+
+            checkboxesContainer.innerHTML = uniqueValues.map(val => {
+                const isChecked = (!currentActiveSet || currentActiveSet.has(val)) ? 'checked' : '';
+                return `
+                    <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 rounded cursor-pointer">
+                        <input type="checkbox" value="${val}" ${isChecked} class="reporte-column-modal-cb rounded text-[#DA291C] focus:ring-[#DA291C]">
+                        <span class="text-gray-700 truncate">${val}</span>
+                    </label>
+                `;
+            }).join('');
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeReporteColumnFilterModal() {
+            document.getElementById('reporte-column-filter-modal').classList.add('hidden');
+            currentReporteModalKey = null;
+        }
+
+        function selectAllReporteModalValues(select) {
+            const checkboxes = document.querySelectorAll('.reporte-column-modal-cb');
+            checkboxes.forEach(cb => cb.checked = select);
+        }
+
+        function filterReporteColumnModalValues() {
+            const query = document.getElementById('reporte-column-filter-search').value.toLowerCase();
+            const labels = document.querySelectorAll('#reporte-column-filter-checkboxes label');
+            labels.forEach(label => {
+                const text = label.innerText.toLowerCase();
+                if (text.includes(query)) {
+                    label.style.display = 'flex';
+                } else {
+                    label.style.display = 'none';
+                }
+            });
+        }
+
+        function applyReporteColumnFilterModal() {
+            const checkboxes = document.querySelectorAll('.reporte-column-modal-cb');
+            const selectedSet = new Set();
+            let allChecked = true;
+
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedSet.add(cb.value);
+                } else {
+                    allChecked = false;
+                }
+            });
+
+            if (allChecked) {
+                if (currentReporteModalKey === 'cp') reporteTableFilters.cpCol = null;
+                if (currentReporteModalKey === 'garantia') reporteTableFilters.garantiaCol = null;
+                if (currentReporteModalKey === 'venc') reporteTableFilters.vencCol = null;
+            } else {
+                if (currentReporteModalKey === 'cp') reporteTableFilters.cpCol = selectedSet;
+                if (currentReporteModalKey === 'garantia') reporteTableFilters.garantiaCol = selectedSet;
+                if (currentReporteModalKey === 'venc') reporteTableFilters.vencCol = selectedSet;
+            }
+
+            pageReportePaquetes = 1;
+            closeReporteColumnFilterModal();
+            renderReportePaquetesTable();
+            updateFloatingResetButton();
+        }
+
+        function clearReporteTableFilters() {
+            reporteTableFilters.cpCol = null;
+            reporteTableFilters.garantiaCol = null;
+            reporteTableFilters.vencCol = null;
+            reporteTableFilters.search = '';
+            const searchInput = document.getElementById('reporte-search-input');
+            if (searchInput) searchInput.value = '';
+            pageReportePaquetes = 1;
+            renderReportePaquetesTable();
+            updateFloatingResetButton();
+        }
+
+        function renderReportePaquetesTable() {
+            const thead = document.querySelector('#reporte-paquetes-table thead');
+            const tbody = document.querySelector('#reporte-paquetes-table tbody');
+            const paginationContainer = document.getElementById('reporte-paquetes-pagination');
+            const activeBar = document.getElementById('reporte-active-filters-bar');
+            const activeDesc = document.getElementById('reporte-active-filters-desc');
+            
+            const colA = columns[0] || 'Guía';
+            const colI = columns[8] || 'C. P.';
+            const semCol = getSemaforoColumn() || 'Estatus';
+            const colT = columns[19] || columns.find(c => c.toLowerCase().includes('cliente')) || 'Cliente';
+            const utCol = getUTColumn() || 'UT';
+            let garCol = columns.find(c => c.toLowerCase().includes('garantía') && !c.toLowerCase().includes('grupo') && !c.toLowerCase().includes('segmento')) || columns[13] || 'Garantía';
+
+            let activeFiltersText = [];
+            if (reporteTableFilters.cpCol) activeFiltersText.push(`C. P. (${reporteTableFilters.cpCol.size} valores)`);
+            if (reporteTableFilters.garantiaCol) activeFiltersText.push(`Garantía (${reporteTableFilters.garantiaCol.size} valores)`);
+            if (reporteTableFilters.vencCol) activeFiltersText.push(`Vencimiento (${reporteTableFilters.vencCol.size} valores)`);
+            if (reporteTableFilters.search) activeFiltersText.push(`Búsqueda ("${reporteTableFilters.search}")`);
+
+            if (activeFiltersText.length > 0) {
+                activeBar.classList.remove('hidden');
+                activeDesc.innerHTML = `<i class="fa-solid fa-filter text-red-600"></i> Filtro de tabla aplicado: ${activeFiltersText.join(' | ')}`;
+            } else {
+                activeBar.classList.add('hidden');
+            }
+
+            thead.innerHTML = `
+                <tr>
+                    <th class="px-4 py-2 cursor-pointer select-none" onclick="sortReporteTable('guia')">
+                        <div class="flex items-center justify-between gap-2">
+                            <span>${colA}</span>
+                            ${getReporteSortIcon('guia')}
+                        </div>
+                    </th>
+                    <th class="px-4 py-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="cursor-pointer select-none flex-grow flex items-center" onclick="sortReporteTable('cp')">
+                                <span>C. P.</span>
+                                ${getReporteSortIcon('cp')}
+                            </span>
+                            <button onclick="openReporteColumnFilterModal('cp')" class="text-gray-500 hover:text-[#DA291C] p-1 rounded transition cursor-pointer ${reporteTableFilters.cpCol ? 'text-[#DA291C] bg-red-50' : ''}" title="Filtrar C. P.">
+                                <i class="fa-solid fa-filter text-xs"></i>
+                            </button>
+                        </div>
+                    </th>
+                    <th class="px-4 py-2 cursor-pointer select-none" onclick="sortReporteTable('ut')">
+                        <div class="flex items-center justify-between gap-2">
+                            <span>UT</span>
+                            ${getReporteSortIcon('ut')}
+                        </div>
+                    </th>
+                    <th class="px-4 py-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="cursor-pointer select-none flex-grow flex items-center" onclick="sortReporteTable('garantia')">
+                                <span>Garantía</span>
+                                ${getReporteSortIcon('garantia')}
+                            </span>
+                            <button onclick="openReporteColumnFilterModal('garantia')" class="text-gray-500 hover:text-[#DA291C] p-1 rounded transition cursor-pointer ${reporteTableFilters.garantiaCol ? 'text-[#DA291C] bg-red-50' : ''}" title="Filtrar Garantía">
+                                <i class="fa-solid fa-filter text-xs"></i>
+                            </button>
+                        </div>
+                    </th>
+                    <th class="px-4 py-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="cursor-pointer select-none flex-grow flex items-center" onclick="sortReporteTable('venc')">
+                                <span>${semCol}</span>
+                                ${getReporteSortIcon('venc')}
+                            </span>
+                            <button onclick="openReporteColumnFilterModal('venc')" class="text-gray-500 hover:text-[#DA291C] p-1 rounded transition cursor-pointer ${reporteTableFilters.vencCol ? 'text-[#DA291C] bg-red-50' : ''}" title="Filtrar Vencimiento">
+                                <i class="fa-solid fa-filter text-xs"></i>
+                            </button>
+                        </div>
+                    </th>
+                    <th class="px-4 py-2 cursor-pointer select-none" onclick="sortReporteTable('cliente')">
+                        <div class="flex items-center justify-between gap-2">
+                            <span>${colT}</span>
+                            ${getReporteSortIcon('cliente')}
+                        </div>
+                    </th>
+                </tr>
+            `;
+
+            let matchingRows = [...filteredData];
+
+            if (reporteTableFilters.cpCol) {
+                matchingRows = matchingRows.filter(row => reporteTableFilters.cpCol.has(String(row[colI] || '').trim()));
+            }
+            if (reporteTableFilters.garantiaCol) {
+                matchingRows = matchingRows.filter(row => reporteTableFilters.garantiaCol.has(String(row[garCol] || '').trim()));
+            }
+            if (reporteTableFilters.vencCol) {
+                matchingRows = matchingRows.filter(row => reporteTableFilters.vencCol.has(String(row[semCol] || '').trim()));
+            }
+            if (reporteTableFilters.search) {
+                const q = reporteTableFilters.search;
+                matchingRows = matchingRows.filter(row => {
+                    return Object.values(row).some(val => String(val).toLowerCase().includes(q));
+                });
+            }
+
+            if (reporteTableSort.column) {
+                matchingRows.sort((a, b) => {
+                    let valA_sort = '', valB_sort = '';
+                    if (reporteTableSort.column === 'guia') {
+                        valA_sort = String(a[colA] || '').trim();
+                        valB_sort = String(b[colA] || '').trim();
+                    } else if (reporteTableSort.column === 'cp') {
+                        valA_sort = String(a[colI] || '').trim();
+                        valB_sort = String(b[colI] || '').trim();
+                    } else if (reporteTableSort.column === 'ut') {
+                        valA_sort = String(a[utCol] || '').trim();
+                        valB_sort = String(b[utCol] || '').trim();
+                    } else if (reporteTableSort.column === 'garantia') {
+                        valA_sort = String(a[garCol] || '').trim();
+                        valB_sort = String(b[garCol] || '').trim();
+                    } else if (reporteTableSort.column === 'venc') {
+                        valA_sort = String(a[semCol] || '').trim();
+                        valB_sort = String(b[semCol] || '').trim();
+                    } else if (reporteTableSort.column === 'cliente') {
+                        valA_sort = String(a[colT] || '').trim();
+                        valB_sort = String(b[colT] || '').trim();
+                    }
+
+                    let numA = Number(valA_sort), numB = Number(valB_sort);
+                    let comparison = 0;
+                    if (!isNaN(numA) && !isNaN(numB) && valA_sort !== '' && valB_sort !== '') {
+                        comparison = numA - numB;
+                    } else {
+                        comparison = valA_sort.localeCompare(valB_sort, 'es', { numeric: true, sensitivity: 'base' });
+                    }
+                    return reporteTableSort.direction === 'asc' ? comparison : -comparison;
+                });
+            }
+
+            document.getElementById('reporte-paquetes-table-count').innerText = `${matchingRows.length} registros`;
+
+            const totalRecords = matchingRows.length;
+            const totalPages = Math.ceil(totalRecords / rowsPerPage) || 1;
+            if (pageReportePaquetes > totalPages) pageReportePaquetes = totalPages;
+            if (pageReportePaquetes < 1) pageReportePaquetes = 1;
+
+            const startIndex = (pageReportePaquetes - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            const pageItems = matchingRows.slice(startIndex, endIndex);
+
+            let renderRows = [...pageItems];
+            if (totalRecords < 9 && renderRows.length < minRows) {
+                while (renderRows.length < minRows) {
+                    renderRows.push({ empty: true });
+                }
+            }
+
+            if (renderRows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-3 text-center text-gray-400">No hay paquetes con los filtros seleccionados</td></tr>`;
+                paginationContainer.innerHTML = '';
+                return;
+            }
+
+            tbody.innerHTML = renderRows.map(row => {
+                if (row.empty) {
+                    return `<tr class="bg-transparent"><td colspan="6" class="px-4 py-2 text-transparent select-none">&nbsp;</td></tr>`;
+                }
+
+                const valA = row[colA] !== undefined ? row[colA] : '';
+                const valCP = row[colI] !== undefined ? row[colI] : '';
+                const valUT = row[utCol] !== undefined ? row[utCol] : '';
+                const valGar = row[garCol] !== undefined ? row[garCol] : '';
+                const valSem = row[semCol] !== undefined ? row[semCol] : '';
+                const valT = row[colT] !== undefined ? row[colT] : '';
+
+                const lowerQ = String(valSem).toLowerCase();
+                let badgeClass = 'bg-gray-100 text-gray-700 border-gray-200';
+                if (lowerQ.includes('rojo') || lowerQ.includes('vencido')) badgeClass = 'bg-red-100 text-red-700 border-red-200';
+                else if (lowerQ.includes('amarillo') || lowerQ.includes('hoy')) badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
+                else if (lowerQ.includes('verde') || lowerQ.includes('tiempo')) badgeClass = 'bg-green-100 text-green-700 border-green-200';
+
+                return `
+                    <tr class="hover:bg-red-50/50 transition">
+                        <td class="px-4 py-2 font-medium text-gray-800">${valA}</td>
+                        <td class="px-4 py-2 text-gray-700">${valCP}</td>
+                        <td class="px-4 py-2 text-gray-700 font-semibold">${valUT}</td>
+                        <td class="px-4 py-2 text-gray-700">${valGar}</td>
+                        <td class="px-4 py-2">
+                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold border ${badgeClass}">${valSem}</span>
+                        </td>
+                        <td class="px-4 py-2 text-gray-700">${valT}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            if (totalRecords > 10) {
+                paginationContainer.innerHTML = `
+                    <span>Mostrando ${startIndex + 1} - ${Math.min(endIndex, totalRecords)} de ${totalRecords} registros</span>
+                    <div class="space-x-1">
+                        <button onclick="changePageReportePaquetes(-1)" ${pageReportePaquetes === 1 ? 'disabled class="px-2 py-1 bg-gray-200 text-gray-400 rounded cursor-not-allowed"' : 'class="px-2 py-1 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-100"'}>Anterior</button>
+                        <span class="px-2 font-medium">Pág. ${pageReportePaquetes} de ${totalPages}</span>
+                        <button onclick="changePageReportePaquetes(1)" ${pageReportePaquetes === totalPages ? 'disabled class="px-2 py-1 bg-gray-200 text-gray-400 rounded cursor-not-allowed"' : 'class="px-2 py-1 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-100"'}>Siguiente</button>
+                    </div>
+                `;
+            } else {
+                paginationContainer.innerHTML = `<span>Mostrando ${totalRecords} registros</span>`;
+            }
+        }
+
+        function changePageReportePaquetes(direction) {
+            pageReportePaquetes += direction;
+            renderReportePaquetesTable();
+        }
+
+        function downloadReportePaquetesExcel() {
+            const colI = columns[8] || 'C. P.';
+            const semCol = getSemaforoColumn() || 'Estatus';
+            let garCol = columns.find(c => c.toLowerCase().includes('garantía') && !c.toLowerCase().includes('grupo') && !c.toLowerCase().includes('segmento')) || columns[13] || 'Garantía';
+
+            let matchingRows = [...filteredData];
+            if (reporteTableFilters.cpCol) {
+                matchingRows = matchingRows.filter(row => reporteTableFilters.cpCol.has(String(row[colI] || '').trim()));
+            }
+            if (reporteTableFilters.garantiaCol) {
+                matchingRows = matchingRows.filter(row => reporteTableFilters.garantiaCol.has(String(row[garCol] || '').trim()));
+            }
+            if (reporteTableFilters.vencCol) {
+                matchingRows = matchingRows.filter(row => reporteTableFilters.vencCol.has(String(row[semCol] || '').trim()));
+            }
+            if (reporteTableFilters.search) {
+                const q = reporteTableFilters.search;
+                matchingRows = matchingRows.filter(row => {
+                    return Object.values(row).some(val => String(val).toLowerCase().includes(q));
+                });
+            }
+
+            if (matchingRows.length === 0) {
+                alert("No hay registros en el reporte para descargar.");
+                return;
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(matchingRows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte General Paquetes");
+            XLSX.writeFile(workbook, "Reporte_General_Paquetes.xlsx");
+        }
+
+        function downloadRojosAmarillosExcel() {
+            const colA = columns[0] || 'Columna A';
+            const colI = columns[8] || 'C. P.';
+            const semCol = getSemaforoColumn() || 'Vencimiento';
+            const colT = columns[19] || columns.find(c => c.toLowerCase().includes('cliente')) || 'Columna T';
+
+            if (!semCol) {
+                alert("No se localizó la columna de estatus/vencimiento para exportar.");
+                return;
+            }
+
+            let matchingRows = filteredData.filter(row => {
+                const semVal = String(row[semCol] || '').trim().toLowerCase();
+                return semVal.includes('rojo') || semVal.includes('amarillo') || semVal.includes('vencido') || semVal.includes('hoy');
+            });
+
+            if (tableColumnFilters.cpCol) {
+                matchingRows = matchingRows.filter(row => {
+                    const valCP = String(row[colI] || '').trim();
+                    return tableColumnFilters.cpCol.has(valCP);
+                });
+            }
+
+            if (tableColumnFilters.vencCol) {
+                matchingRows = matchingRows.filter(row => {
+                    const valVenc = String(row[semCol] || '').trim();
+                    return tableColumnFilters.vencCol.has(valVenc);
+                });
+            }
+
+            if (matchingRows.length === 0) {
+                alert("No hay registros en la tabla Rojos y Amarillos para descargar con los filtros actuales.");
+                return;
+            }
+
+            const exportData = matchingRows.map(row => ({
+                [colA]: row[colA] !== undefined ? row[colA] : '',
+                "C. P.": row[colI] !== undefined ? row[colI] : '',
+                [semCol]: row[semCol] !== undefined ? row[semCol] : '',
+                [colT]: row[colT] !== undefined ? row[colT] : ''
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Rojos y Amarillos");
+            XLSX.writeFile(workbook, "Rojos_y_Amarillos_por_UT.xlsx");
+        }
+
+        function openColumnFilterModal(colKey) {
+            currentModalColumnKey = colKey;
+            const modal = document.getElementById('column-filter-modal');
+            const titleEl = document.getElementById('column-filter-title');
+            const checkboxesContainer = document.getElementById('column-filter-checkboxes');
+            document.getElementById('column-filter-search').value = '';
+
+            const semCol = getSemaforoColumn();
+            const colI = columns[8] || 'C. P.';
+
+            if (colKey === 'cp') {
+                titleEl.innerHTML = `<i class="fa-solid fa-filter text-[#DA291C]"></i> Filtrar Columna: C. P.`;
+            } else {
+                titleEl.innerHTML = `<i class="fa-solid fa-filter text-[#DA291C]"></i> Filtrar Columna: ${semCol || 'Vencimiento'}`;
+            }
+
+            const semColKey = getSemaforoColumn();
+            let baseMatchingRows = filteredData.filter(row => {
+                const semVal = String(row[semColKey] || '').trim().toLowerCase();
+                return semVal.includes('rojo') || semVal.includes('amarillo') || semVal.includes('vencido') || semVal.includes('hoy');
+            });
+
+            if (colKey === 'cp' && tableColumnFilters.vencCol) {
+                baseMatchingRows = baseMatchingRows.filter(row => {
+                    const valVenc = String(row[semColKey] || '').trim();
+                    return tableColumnFilters.vencCol.has(valVenc);
+                });
+            } else if (colKey === 'venc' && tableColumnFilters.cpCol) {
+                baseMatchingRows = baseMatchingRows.filter(row => {
+                    const valCP = String(row[colI] || '').trim();
+                    return tableColumnFilters.cpCol.has(valCP);
+                });
+            }
+
+            const targetCol = (colKey === 'cp') ? colI : semColKey;
+            const uniqueValues = [...new Set(baseMatchingRows.map(row => String(row[targetCol] || '').trim()))].filter(Boolean).sort();
+
+            const currentActiveSet = (colKey === 'cp') ? tableColumnFilters.cpCol : tableColumnFilters.vencCol;
+
+            checkboxesContainer.innerHTML = uniqueValues.map(val => {
+                const isChecked = (!currentActiveSet || currentActiveSet.has(val)) ? 'checked' : '';
+                return `
+                    <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 rounded cursor-pointer">
+                        <input type="checkbox" value="${val}" ${isChecked} class="column-modal-cb rounded text-[#DA291C] focus:ring-[#DA291C]">
+                        <span class="text-gray-700 truncate">${val}</span>
+                    </label>
+                `;
+            }).join('');
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeColumnFilterModal() {
+            document.getElementById('column-filter-modal').classList.add('hidden');
+            currentModalColumnKey = null;
+        }
+
+        function selectAllModalValues(select) {
+            const checkboxes = document.querySelectorAll('.column-modal-cb');
+            checkboxes.forEach(cb => cb.checked = select);
+        }
+
+        function filterColumnModalValues() {
+            const query = document.getElementById('column-filter-search').value.toLowerCase();
+            const labels = document.querySelectorAll('#column-filter-checkboxes label');
+            labels.forEach(label => {
+                const text = label.innerText.toLowerCase();
+                if (text.includes(query)) {
+                    label.style.display = 'flex';
+                } else {
+                    label.style.display = 'none';
+                }
+            });
+        }
+
+        function applyColumnFilterModal() {
+            const checkboxes = document.querySelectorAll('.column-modal-cb');
+            const selectedSet = new Set();
+            let allChecked = true;
+
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedSet.add(cb.value);
+                } else {
+                    allChecked = false;
+                }
+            });
+
+            if (allChecked) {
+                if (currentModalColumnKey === 'cp') tableColumnFilters.cpCol = null;
+                if (currentModalColumnKey === 'venc') tableColumnFilters.vencCol = null;
+            } else {
+                if (currentModalColumnKey === 'cp') tableColumnFilters.cpCol = selectedSet;
+                if (currentModalColumnKey === 'venc') tableColumnFilters.vencCol = selectedSet;
+            }
+
+            pageRojosAmarillos = 1;
+            closeColumnFilterModal();
+            renderRojosAmarillosUTTable();
+            updateFloatingResetButton();
+        }
+
+        function clearTableFilters() {
+            tableColumnFilters.cpCol = null;
+            tableColumnFilters.vencCol = null;
+            pageRojosAmarillos = 1;
+            renderRojosAmarillosUTTable();
+            updateFloatingResetButton();
+        }
+
+        function sortRojosAmarillos(colKey) {
+            if (rojosAmarillosSort.column === colKey) {
+                rojosAmarillosSort.direction = rojosAmarillosSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                rojosAmarillosSort.column = colKey;
+                rojosAmarillosSort.direction = 'asc';
+            }
+            renderRojosAmarillosUTTable();
+        }
+
+        function getSortIcon(colKey) {
+            if (rojosAmarillosSort.column !== colKey) {
+                return '<i class="fa-solid fa-sort text-gray-300 hover:text-gray-500 text-xs ml-1"></i>';
+            }
+            return rojosAmarillosSort.direction === 'asc' 
+                ? '<i class="fa-solid fa-sort-up text-[#DA291C] text-xs ml-1"></i>' 
+                : '<i class="fa-solid fa-sort-down text-[#DA291C] text-xs ml-1"></i>';
+        }
+
+        function renderRojosAmarillosUTTable() {
+            const thead = document.querySelector('#rojos-amarillos-ut-table thead');
+            const tbody = document.querySelector('#rojos-amarillos-ut-table tbody');
+            const paginationContainer = document.getElementById('rojos-amarillos-pagination');
+            const concentradoContainer = document.getElementById('rojos-amarillos-concentrado');
+            const activeBar = document.getElementById('table-active-filters-bar');
+            const activeDesc = document.getElementById('table-active-filters-desc');
+            
+            const colA = columns[0] || 'Columna A';
+            const colI = columns[8] || 'C. P.';
+            const semCol = getSemaforoColumn() || 'Vencimiento';
+            const colT = columns[19] || columns.find(c => c.toLowerCase().includes('cliente')) || 'Columna T';
+
+            let activeFiltersText = [];
+            if (tableColumnFilters.cpCol) activeFiltersText.push(`C. P. (${tableColumnFilters.cpCol.size} valores)`);
+            if (tableColumnFilters.vencCol) activeFiltersText.push(`Vencimiento (${tableColumnFilters.vencCol.size} valores)`);
+
+            if (activeFiltersText.length > 0) {
+                activeBar.classList.remove('hidden');
+                activeDesc.innerHTML = `<i class="fa-solid fa-filter text-red-600"></i> Filtro aplicado en tabla: ${activeFiltersText.join(' y ')}`;
+            } else {
+                activeBar.classList.add('hidden');
+            }
+
+            thead.innerHTML = `
+                <tr>
+                    <th class="px-4 py-2 cursor-pointer select-none" onclick="sortRojosAmarillos('colA')">
+                        <div class="flex items-center justify-between gap-2">
+                            <span>${colA}</span>
+                            ${getSortIcon('colA')}
+                        </div>
+                    </th>
+                    <th class="px-4 py-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="cursor-pointer select-none flex-grow flex items-center" onclick="sortRojosAmarillos('cp')">
+                                <span>C. P.</span>
+                                ${getSortIcon('cp')}
+                            </span>
+                            <button onclick="openColumnFilterModal('cp')" class="text-gray-500 hover:text-[#DA291C] p-1 rounded transition cursor-pointer ${tableColumnFilters.cpCol ? 'text-[#DA291C] bg-red-50' : ''}" title="Filtrar C. P.">
+                                <i class="fa-solid fa-filter text-xs"></i>
+                            </button>
+                        </div>
+                    </th>
+                    <th class="px-4 py-2">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="cursor-pointer select-none flex-grow flex items-center" onclick="sortRojosAmarillos('venc')">
+                                <span>${semCol}</span>
+                                ${getSortIcon('venc')}
+                            </span>
+                            <button onclick="openColumnFilterModal('venc')" class="text-gray-500 hover:text-[#DA291C] p-1 rounded transition cursor-pointer ${tableColumnFilters.vencCol ? 'text-[#DA291C] bg-red-50' : ''}" title="Filtrar Vencimiento">
+                                <i class="fa-solid fa-filter text-xs"></i>
+                            </button>
+                        </div>
+                    </th>
+                    <th class="px-4 py-2 cursor-pointer select-none" onclick="sortRojosAmarillos('colT')">
+                        <div class="flex items-center justify-between gap-2">
+                            <span>${colT}</span>
+                            ${getSortIcon('colT')}
+                        </div>
+                    </th>
+                </tr>
+            `;
+
+            if (!semCol) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-3 text-center text-gray-400">No se localizó la columna de estatus/vencimiento</td></tr>`;
+                document.getElementById('rojos-amarillos-table-count').innerText = `0 registros`;
+                concentradoContainer.innerHTML = `<span>Sin datos</span>`;
+                paginationContainer.innerHTML = '';
+                return;
+            }
+
+            let matchingRows = filteredData.filter(row => {
+                const semVal = String(row[semCol] || '').trim().toLowerCase();
+                return semVal.includes('rojo') || semVal.includes('amarillo') || semVal.includes('vencido') || semVal.includes('hoy');
+            });
+
+            if (tableColumnFilters.cpCol) {
+                matchingRows = matchingRows.filter(row => {
+                    const valCP = String(row[colI] || '').trim();
+                    return tableColumnFilters.cpCol.has(valCP);
+                });
+            }
+
+            if (tableColumnFilters.vencCol) {
+                matchingRows = matchingRows.filter(row => {
+                    const valVenc = String(row[semCol] || '').trim();
+                    return tableColumnFilters.vencCol.has(valVenc);
+                });
+            }
+
+            if (rojosAmarillosSort.column) {
+                matchingRows.sort((a, b) => {
+                    let valA_sort = '', valB_sort = '';
+                    if (rojosAmarillosSort.column === 'colA') {
+                        valA_sort = String(a[colA] || '').trim();
+                        valB_sort = String(b[colA] || '').trim();
+                    } else if (rojosAmarillosSort.column === 'cp') {
+                        valA_sort = String(a[colI] || '').trim();
+                        valB_sort = String(b[colI] || '').trim();
+                    } else if (rojosAmarillosSort.column === 'venc') {
+                        valA_sort = String(a[semCol] || '').trim();
+                        valB_sort = String(b[semCol] || '').trim();
+                    } else if (rojosAmarillosSort.column === 'colT') {
+                        valA_sort = String(a[colT] || '').trim();
+                        valB_sort = String(b[colT] || '').trim();
+                    }
+
+                    let numA = Number(valA_sort), numB = Number(valB_sort);
+                    let comparison = 0;
+                    if (!isNaN(numA) && !isNaN(numB) && valA_sort !== '' && valB_sort !== '') {
+                        comparison = numA - numB;
+                    } else {
+                        comparison = valA_sort.localeCompare(valB_sort, 'es', { numeric: true, sensitivity: 'base' });
+                    }
+                    return rojosAmarillosSort.direction === 'asc' ? comparison : -comparison;
+                });
+            }
+
+            document.getElementById('rojos-amarillos-table-count').innerText = `${matchingRows.length} registros`;
+
+            const countsByQ = {};
+            matchingRows.forEach(row => {
+                const valQ = String(row[semCol] || 'No especificado').trim();
+                countsByQ[valQ] = (countsByQ[valQ] || 0) + 1;
+            });
+
+            const concentradoHTML = Object.entries(countsByQ).map(([key, count]) => {
+                const lowerKey = key.toLowerCase();
+                let badgeStyle = 'bg-gray-100 text-gray-800 border-gray-200';
+                if (lowerKey.includes('rojo') || lowerKey.includes('vencido')) badgeStyle = 'bg-red-100 text-red-700 border-red-200';
+                else if (lowerKey.includes('amarillo') || lowerKey.includes('hoy')) badgeStyle = 'bg-amber-100 text-amber-800 border-amber-200';
+
+                return `
+                    <span class="px-2 py-0.5 rounded border ${badgeStyle} text-xs font-semibold">
+                        ${key}: <strong class="text-gray-900">${count}</strong>
+                    </span>
+                `;
+            }).join('');
+
+            concentradoContainer.innerHTML = concentradoHTML || '<span>Sin elementos</span>';
+
+            const totalRecords = matchingRows.length;
+            const totalPages = Math.ceil(totalRecords / rowsPerPage) || 1;
+            if (pageRojosAmarillos > totalPages) pageRojosAmarillos = totalPages;
+            if (pageRojosAmarillos < 1) pageRojosAmarillos = 1;
+
+            const startIndex = (pageRojosAmarillos - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            const pageItems = matchingRows.slice(startIndex, endIndex);
+
+            let renderRows = [...pageItems];
+            if (totalRecords < 9 && renderRows.length < minRows) {
+                while (renderRows.length < minRows) {
+                    renderRows.push({ empty: true });
+                }
+            }
+
+            if (renderRows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-3 text-center text-gray-400">No hay registros con los filtros seleccionados</td></tr>`;
+                paginationContainer.innerHTML = '';
+                return;
+            }
+
+            tbody.innerHTML = renderRows.map(row => {
+                if (row.empty) {
+                    return `<tr class="bg-transparent"><td colspan="4" class="px-4 py-2 text-transparent select-none">&nbsp;</td></tr>`;
+                }
+
+                const valA = row[colA] !== undefined ? row[colA] : '';
+                const valI = row[colI] !== undefined ? row[colI] : '';
+                const valQ = row[semCol] !== undefined ? row[semCol] : '';
+                const valT = row[colT] !== undefined ? row[colT] : '';
+
+                const lowerQ = String(valQ).toLowerCase();
+                let badgeClass = 'bg-gray-100 text-gray-700 border-gray-200';
+                if (lowerQ.includes('rojo') || lowerQ.includes('vencido')) badgeClass = 'bg-red-100 text-red-700 border-red-200';
+                else if (lowerQ.includes('amarillo') || lowerQ.includes('hoy')) badgeClass = 'bg-amber-100 text-amber-800 border-amber-200';
+
+                return `
+                    <tr class="hover:bg-red-50/50 transition">
+                        <td class="px-4 py-2 font-medium text-gray-800">${valA}</td>
+                        <td class="px-4 py-2 text-gray-700">${valI}</td>
+                        <td class="px-4 py-2">
+                            <span class="px-2 py-0.5 rounded-full text-xs font-semibold border ${badgeClass}">${valQ}</span>
+                        </td>
+                        <td class="px-4 py-2 text-gray-700">${valT}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            if (totalRecords > 10) {
+                paginationContainer.innerHTML = `
+                    <span>Mostrando ${startIndex + 1} - ${Math.min(endIndex, totalRecords)} de ${totalRecords} registros</span>
+                    <div class="space-x-1">
+                        <button onclick="changePageRojosAmarillos(-1)" ${pageRojosAmarillos === 1 ? 'disabled class="px-2 py-1 bg-gray-200 text-gray-400 rounded cursor-not-allowed"' : 'class="px-2 py-1 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-100"'}>Anterior</button>
+                        <span class="px-2 font-medium">Pág. ${pageRojosAmarillos} de ${totalPages}</span>
+                        <button onclick="changePageRojosAmarillos(1)" ${pageRojosAmarillos === totalPages ? 'disabled class="px-2 py-1 bg-gray-200 text-gray-400 rounded cursor-not-allowed"' : 'class="px-2 py-1 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-100"'}>Siguiente</button>
+                    </div>
+                `;
+            } else {
+                paginationContainer.innerHTML = `<span>Mostrando ${totalRecords} registros</span>`;
+            }
+        }
+
+        function changePageRojosAmarillos(direction) {
+            pageRojosAmarillos += direction;
+            renderRojosAmarillosUTTable();
+        }
+
+        function sortGarantiaTable(colKey) {
+            if (garantiaTableSort.column === colKey) {
+                garantiaTableSort.direction = garantiaTableSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                garantiaTableSort.column = colKey;
+                garantiaTableSort.direction = 'asc';
+            }
+            updateGarantiaSortIcons();
+            renderGarantiaUTTable();
+        }
+
+        function updateGarantiaSortIcons() {
+            ['ut', 'garantia', 'count', 'percentage'].forEach(key => {
+                const iconEl = document.getElementById(`sort-icon-${key}`);
+                if (!iconEl) return;
+                if (garantiaTableSort.column !== key) {
+                    iconEl.innerHTML = '<i class="fa-solid fa-sort text-gray-300 hover:text-gray-500 text-xs ml-1"></i>';
+                } else {
+                    iconEl.innerHTML = garantiaTableSort.direction === 'asc' 
+                        ? '<i class="fa-solid fa-sort-up text-[#DA291C] text-xs ml-1"></i>' 
+                        : '<i class="fa-solid fa-sort-down text-[#DA291C] text-xs ml-1"></i>';
+                }
+            });
+        }
+
+        function openGarantiaColumnFilterModal(colKey) {
+            currentGarantiaModalKey = colKey;
+            const modal = document.getElementById('garantia-column-filter-modal');
+            const titleEl = document.getElementById('garantia-column-filter-title');
+            const checkboxesContainer = document.getElementById('garantia-column-filter-checkboxes');
+            document.getElementById('garantia-column-filter-search').value = '';
+
+            const utCol = getUTColumn();
+            let garCol = columns.find(c => c.toLowerCase().includes('garantía') && !c.toLowerCase().includes('grupo') && !c.toLowerCase().includes('segmento')) || columns[13] || 'Garantía';
+
+            const displayName = colKey === 'ut' ? 'UT (Unidad de Transporte)' : 'Garantía';
+            titleEl.innerHTML = `<i class="fa-solid fa-filter text-[#DA291C]"></i> Filtrar Columna: ${displayName}`;
+
+            const utTotals = {};
+            const utGarCounts = {};
+            filteredData.forEach(row => {
+                const utVal = String(row[utCol] || 'Sin UT').trim();
+                const garVal = String(row[garCol] || 'No especificado').trim();
+                utTotals[utVal] = (utTotals[utVal] || 0) + 1;
+                if (!utGarCounts[utVal]) utGarCounts[utVal] = {};
+                utGarCounts[utVal][garVal] = (utGarCounts[utVal][garVal] || 0) + 1;
+            });
+
+            let tableRows = [];
+            Object.keys(utGarCounts).forEach(ut => {
+                const totalUTLoad = utTotals[ut];
+                Object.keys(utGarCounts[ut]).forEach(garantia => {
+                    const count = utGarCounts[ut][garantia];
+                    const percentage = totalUTLoad > 0 ? Number(((count / totalUTLoad) * 100).toFixed(2)) : 0;
+                    tableRows.push({ ut, garantia, count, percentage });
+                });
+            });
+
+            let baseRows = [...tableRows];
+            if (colKey === 'ut' && garantiaTableFilters.garantiaCol) {
+                baseRows = baseRows.filter(r => garantiaTableFilters.garantiaCol.has(r.garantia));
+            } else if (colKey === 'garantia' && garantiaTableFilters.utCol) {
+                baseRows = baseRows.filter(r => garantiaTableFilters.utCol.has(r.ut));
+            }
+
+            const uniqueValues = [...new Set(baseRows.map(r => r[colKey]))].filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), 'es', { numeric: true }));
+            const currentActiveSet = colKey === 'ut' ? garantiaTableFilters.utCol : garantiaTableFilters.garantiaCol;
+
+            checkboxesContainer.innerHTML = uniqueValues.map(val => {
+                const isChecked = (!currentActiveSet || currentActiveSet.has(String(val))) ? 'checked' : '';
+                return `
+                    <label class="flex items-center gap-2 px-2 py-1 hover:bg-gray-100 rounded cursor-pointer">
+                        <input type="checkbox" value="${val}" ${isChecked} class="garantia-column-modal-cb rounded text-[#DA291C] focus:ring-[#DA291C]">
+                        <span class="text-gray-700 truncate">${val}</span>
+                    </label>
+                `;
+            }).join('');
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeGarantiaColumnFilterModal() {
+            document.getElementById('garantia-column-filter-modal').classList.add('hidden');
+            currentGarantiaModalKey = null;
+        }
+
+        function selectAllGarantiaModalValues(select) {
+            const checkboxes = document.querySelectorAll('.garantia-column-modal-cb');
+            checkboxes.forEach(cb => cb.checked = select);
+        }
+
+        function filterGarantiaColumnModalValues() {
+            const query = document.getElementById('garantia-column-filter-search').value.toLowerCase();
+            const labels = document.querySelectorAll('#garantia-column-filter-checkboxes label');
+            labels.forEach(label => {
+                const text = label.innerText.toLowerCase();
+                if (text.includes(query)) {
+                    label.style.display = 'flex';
+                } else {
+                    label.style.display = 'none';
+                }
+            });
+        }
+
+        function applyGarantiaColumnFilterModal() {
+            const checkboxes = document.querySelectorAll('.garantia-column-modal-cb');
+            const selectedSet = new Set();
+            let allChecked = true;
+
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selectedSet.add(cb.value);
+                } else {
+                    allChecked = false;
+                }
+            });
+
+            if (allChecked) {
+                if (currentGarantiaModalKey === 'ut') garantiaTableFilters.utCol = null;
+                if (currentGarantiaModalKey === 'garantia') garantiaTableFilters.garantiaCol = null;
+            } else {
+                if (currentGarantiaModalKey === 'ut') garantiaTableFilters.utCol = selectedSet;
+                if (currentGarantiaModalKey === 'garantia') garantiaTableFilters.garantiaCol = selectedSet;
+            }
+
+            pageGarantiaUT = 1;
+            closeGarantiaColumnFilterModal();
+            renderGarantiaUTTable();
+            updateFloatingResetButton();
+        }
+
+        function clearGarantiaTableFilters() {
+            garantiaTableFilters.utCol = null;
+            garantiaTableFilters.garantiaCol = null;
+            pageGarantiaUT = 1;
+            renderGarantiaUTTable();
+            updateFloatingResetButton();
+        }
+
+        function renderGarantiaUTTable() {
+            const tbody = document.querySelector('#garantia-ut-table tbody');
+            const paginationContainer = document.getElementById('garantia-ut-pagination');
+            const activeBar = document.getElementById('garantia-active-filters-bar');
+            const activeDesc = document.getElementById('garantia-active-filters-desc');
+
+            const utCol = getUTColumn();
+            let garCol = columns.find(c => c.toLowerCase().includes('garantía') && !c.toLowerCase().includes('grupo') && !c.toLowerCase().includes('segmento'));
+            if (!garCol) garCol = columns[13] || columns[0];
+
+            let activeFiltersText = [];
+            if (garantiaTableFilters.utCol) activeFiltersText.push(`UT (${garantiaTableFilters.utCol.size} valores)`);
+            if (garantiaTableFilters.garantiaCol) activeFiltersText.push(`Garantía (${garantiaTableFilters.garantiaCol.size} valores)`);
+
+            if (activeFiltersText.length > 0) {
+                activeBar.classList.remove('hidden');
+                activeDesc.innerHTML = `<i class="fa-solid fa-filter text-red-600"></i> Filtro aplicado en tabla: ${activeFiltersText.join(' y ')}`;
+            } else {
+                activeBar.classList.add('hidden');
+            }
+
+            if (!utCol) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-3 text-center text-gray-400">Columna UT no disponible</td></tr>`;
+                document.getElementById('garantia-table-count').innerText = `0 registros`;
+                paginationContainer.innerHTML = '';
+                return;
+            }
+
+            const utTotals = {};
+            const utGarCounts = {};
+
+            filteredData.forEach(row => {
+                const utVal = String(row[utCol] || 'Sin UT').trim();
+                const garVal = String(row[garCol] || 'No especificado').trim();
+
+                utTotals[utVal] = (utTotals[utVal] || 0) + 1;
+
+                if (!utGarCounts[utVal]) utGarCounts[utVal] = {};
+                utGarCounts[utVal][garVal] = (utGarCounts[utVal][garVal] || 0) + 1;
+            });
+
+            let tableRows = [];
+            Object.keys(utGarCounts).forEach(ut => {
+                const totalUTLoad = utTotals[ut];
+                Object.keys(utGarCounts[ut]).forEach(garantia => {
+                    const count = utGarCounts[ut][garantia];
+                    const percentage = totalUTLoad > 0 ? Number(((count / totalUTLoad) * 100).toFixed(2)) : 0;
+                    tableRows.push({ ut, garantia, count, percentage });
+                });
+            });
+
+            if (garantiaTableFilters.utCol) {
+                tableRows = tableRows.filter(r => garantiaTableFilters.utCol.has(r.ut));
+            }
+            if (garantiaTableFilters.garantiaCol) {
+                tableRows = tableRows.filter(r => garantiaTableFilters.garantiaCol.has(r.garantia));
+            }
+
+            if (garantiaTableSort.column) {
+                tableRows.sort((a, b) => {
+                    let valA = a[garantiaTableSort.column];
+                    let valB = b[garantiaTableSort.column];
+                    let comparison = 0;
+
+                    if (typeof valA === 'number' && typeof valB === 'number') {
+                        comparison = valA - valB;
+                    } else {
+                        comparison = String(valA).localeCompare(String(valB), 'es', { numeric: true, sensitivity: 'base' });
+                    }
+                    return garantiaTableSort.direction === 'asc' ? comparison : -comparison;
+                });
+            }
+
+            document.getElementById('garantia-table-count').innerText = `${tableRows.length} combinaciones`;
+
+            const totalRecords = tableRows.length;
+            const totalPages = Math.ceil(totalRecords / rowsPerPage) || 1;
+            if (pageGarantiaUT > totalPages) pageGarantiaUT = totalPages;
+            if (pageGarantiaUT < 1) pageGarantiaUT = 1;
+
+            const startIndex = (pageGarantiaUT - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            const pageItems = tableRows.slice(startIndex, endIndex);
+
+            let renderRows = [...pageItems];
+            if (totalRecords < 9 && renderRows.length < minRows) {
+                while (renderRows.length < minRows) {
+                    renderRows.push({ empty: true });
+                }
+            }
+
+            if (renderRows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-3 text-center text-gray-400">No hay datos con los filtros seleccionados</td></tr>`;
+                paginationContainer.innerHTML = '';
+                return;
+            }
+
+            tbody.innerHTML = renderRows.map(r => {
+                if (r.empty) {
+                    return `<tr class="bg-transparent"><td colspan="4" class="px-4 py-2 text-transparent select-none">&nbsp;</td></tr>`;
+                }
+                return `
+                    <tr class="hover:bg-red-50/50 transition">
+                        <td class="px-4 py-2 font-medium text-gray-800">${r.ut}</td>
+                        <td class="px-4 py-2 text-gray-700">${r.garantia}</td>
+                        <td class="px-4 py-2 text-right font-semibold text-gray-800">${r.count.toLocaleString()}</td>
+                        <td class="px-4 py-2 text-right text-estafeta font-bold">${r.percentage}%</td>
+                    </tr>
+                `;
+            }).join('');
+
+            if (totalRecords > 10) {
+                paginationContainer.innerHTML = `
+                    <span>Mostrando ${startIndex + 1} - ${Math.min(endIndex, totalRecords)} de ${totalRecords} registros</span>
+                    <div class="space-x-1">
+                        <button onclick="changePageGarantiaUT(-1)" ${pageGarantiaUT === 1 ? 'disabled class="px-2 py-1 bg-gray-200 text-gray-400 rounded cursor-not-allowed"' : 'class="px-2 py-1 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-100"'}>Anterior</button>
+                        <span class="px-2 font-medium">Pág. ${pageGarantiaUT} de ${totalPages}</span>
+                        <button onclick="changePageGarantiaUT(1)" ${pageGarantiaUT === totalPages ? 'disabled class="px-2 py-1 bg-gray-200 text-gray-400 rounded cursor-not-allowed"' : 'class="px-2 py-1 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-100"'}>Siguiente</button>
+                    </div>
+                `;
+            } else {
+                paginationContainer.innerHTML = `<span>Mostrando ${totalRecords} registros</span>`;
+            }
+        }
+
+        function changePageGarantiaUT(direction) {
+            pageGarantiaUT += direction;
+            renderGarantiaUTTable();
+        }
+
+        function renderTable() {
+            const thead = document.querySelector('#data-table thead');
+            const tbody = document.querySelector('#data-table tbody');
+            const paginationContainer = document.getElementById('data-table-pagination');
+            
+            const priorityCols = columns.slice(0, 10);
+            if (columns[34] && !priorityCols.includes(columns[34])) priorityCols.push(columns[34]);
+            if (columns[36] && !priorityCols.includes(columns[36])) priorityCols.push(columns[36]);
+
+            thead.innerHTML = `<tr>${priorityCols.map(c => `<th class="px-3 py-2">${c}</th>`).join('')}</tr>`;
+            
+            const totalRecords = filteredData.length;
+            const totalPages = Math.ceil(totalRecords / rowsPerPage) || 1;
+            if (pageGuiasOperativas > totalPages) pageGuiasOperativas = totalPages;
+            if (pageGuiasOperativas < 1) pageGuiasOperativas = 1;
+
+            const startIndex = (pageGuiasOperativas - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            const pageItems = filteredData.slice(startIndex, endIndex);
+
+            let renderRows = [...pageItems];
+            if (totalRecords < 9 && renderRows.length < minRows) {
+                while (renderRows.length < minRows) {
+                    renderRows.push({ empty: true });
+                }
+            }
+
+            if (renderRows.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${priorityCols.length}" class="px-3 py-3 text-center text-gray-400">No hay registros para mostrar</td></tr>`;
+                paginationContainer.innerHTML = '';
+                document.getElementById('table-count').innerText = `Mostrando 0 de 0 registros`;
+                return;
+            }
+
+            tbody.innerHTML = renderRows.map(row => {
+                if (row.empty) {
+                    return `<tr class="bg-transparent"><td colspan="${priorityCols.length}" class="px-3 py-2 text-transparent select-none">&nbsp;</td></tr>`;
+                }
+                return `
+                    <tr class="hover:bg-red-50/50 transition">
+                        ${priorityCols.map(c => `<td class="px-3 py-2 text-gray-700">${row[c] !== undefined ? row[c] : ''}</td>`).join('')}
+                    </tr>
+                `;
+            }).join('');
+
+            document.getElementById('table-count').innerText = `Mostrando ${startIndex + 1} - ${Math.min(endIndex, totalRecords)} de ${totalRecords} registros`;
+
+            if (totalRecords > 10) {
+                paginationContainer.innerHTML = `
+                    <span>Mostrando ${startIndex + 1} - ${Math.min(endIndex, totalRecords)} de ${totalRecords} registros</span>
+                    <div class="space-x-1">
+                        <button onclick="changePageGuiasOperativas(-1)" ${pageGuiasOperativas === 1 ? 'disabled class="px-2 py-1 bg-gray-200 text-gray-400 rounded cursor-not-allowed"' : 'class="px-2 py-1 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-100"'}>Anterior</button>
+                        <span class="px-2 font-medium">Pág. ${pageGuiasOperativas} de ${totalPages}</span>
+                        <button onclick="changePageGuiasOperativas(1)" ${pageGuiasOperativas === totalPages ? 'disabled class="px-2 py-1 bg-gray-200 text-gray-400 rounded cursor-not-allowed"' : 'class="px-2 py-1 bg-white border border-gray-300 text-gray-700 rounded hover:bg-gray-100"'}>Siguiente</button>
+                    </div>
+                `;
+            } else {
+                paginationContainer.innerHTML = `<span>Mostrando ${totalRecords} registros</span>`;
+            }
+        }
+
+        function changePageGuiasOperativas(direction) {
+            pageGuiasOperativas += direction;
+            renderTable();
+        }
+
+        function filterData() {
+            const searchGenVal = document.getElementById('search-general').value.toLowerCase();
+            const garantiaVal = document.getElementById('slicer-garantia').value;
+            const utCol = getUTColumn();
+            const plazaCol = getPlazaColumn();
+            let garCol = columns.find(c => c.toLowerCase().includes('garantía') && !c.toLowerCase().includes('grupo') && !c.toLowerCase().includes('segmento'));
+            if (!garCol) garCol = columns[13] || columns[0];
+
+            const totalCheckboxes = document.querySelectorAll('#ut-checkbox-list input[type="checkbox"]').length;
+            const allSelectedUT = selectedUTs.size === totalCheckboxes;
+
+            const plazaCheckboxes = document.querySelectorAll('#plaza-multiselect-options-container input[type="checkbox"]').length;
+            const allSelectedPlaza = selectedPlazas.size === plazaCheckboxes;
+
+            filteredData = rawData.filter(row => {
+                if (utCol && !allSelectedUT) {
+                    const rowUT = String(row[utCol] || '').trim();
+                    if (!selectedUTs.has(rowUT)) return false;
+                }
+
+                if (plazaCol && !allSelectedPlaza) {
+                    const rowPlaza = String(row[plazaCol] || '').trim();
+                    if (!selectedPlazas.has(rowPlaza)) return false;
+                }
+
+                if (garantiaVal && String(row[garCol] || '').trim() !== garantiaVal) {
+                    return false;
+                }
+
+                if (searchGenVal) {
+                    const match = Object.values(row).some(val => String(val).toLowerCase().includes(searchGenVal));
+                    if (!match) return false;
+                }
+
+                return true;
+            });
+
+            pageReportePaquetes = 1;
+            pageRojosAmarillos = 1;
+            pageGarantiaUT = 1;
+            pageGuiasOperativas = 1;
+
+            updateDashboard();
+        }
+
+        function renderActiveFilters() {
+            const container = document.getElementById('active-filters');
+            let chips = [];
+
+            const utCol = getUTColumn();
+            const totalCheckboxes = document.querySelectorAll('#ut-checkbox-list input[type="checkbox"]').length;
+            if (utCol && selectedUTs.size < totalCheckboxes && totalCheckboxes > 0) {
+                chips.push(`
+                    <span class="text-xs bg-red-100 text-red-800 px-3 py-1 rounded-full border border-red-200 flex items-center gap-1 font-medium">
+                        UTs: <strong>${selectedUTs.size} seleccionados</strong>
+                    </span>
+                `);
+            }
+
+            const plazaCol = getPlazaColumn();
+            const plazaCheckboxes = document.querySelectorAll('#plaza-multiselect-options-container input[type="checkbox"]').length;
+            if (plazaCol && selectedPlazas.size < plazaCheckboxes && plazaCheckboxes > 0) {
+                chips.push(`
+                    <span class="text-xs bg-red-100 text-red-800 px-3 py-1 rounded-full border border-red-200 flex items-center gap-1 font-medium">
+                        Plaza: <strong>${selectedPlazas.size} seleccionadas</strong>
+                    </span>
+                `);
+            }
+
+            const garantiaVal = document.getElementById('slicer-garantia').value;
+            if (garantiaVal) {
+                chips.push(`
+                    <span class="text-xs bg-red-100 text-red-800 px-3 py-1 rounded-full border border-red-200 flex items-center gap-1 font-medium">
+                        Garantía: <strong>${garantiaVal}</strong>
+                    </span>
+                `);
+            }
+
+            const searchGenVal = document.getElementById('search-general').value;
+            if (searchGenVal) {
+                chips.push(`
+                    <span class="text-xs bg-red-100 text-red-800 px-3 py-1 rounded-full border border-red-200 flex items-center gap-1 font-medium">
+                        Búsqueda: <strong>${searchGenVal}</strong>
+                    </span>
+                `);
+            }
+
+            if (chips.length === 0) {
+                container.innerHTML = `<span class="text-xs bg-gray-100 text-gray-500 px-2.5 py-1 rounded-full border">Sin filtros activos</span>`;
+            } else {
+                container.innerHTML = chips.join('');
+            }
+        }
+
+        function hasActiveFilters() {
+            const garantiaVal = document.getElementById('slicer-garantia').value;
+            const searchGenVal = document.getElementById('search-general').value;
+            const totalCheckboxes = document.querySelectorAll('#ut-checkbox-list input[type="checkbox"]').length;
+            const utNotAll = totalCheckboxes > 0 && selectedUTs.size < totalCheckboxes;
+
+            const plazaCheckboxes = document.querySelectorAll('#plaza-multiselect-options-container input[type="checkbox"]').length;
+            const plazaNotAll = plazaCheckboxes > 0 && selectedPlazas.size < plazaCheckboxes;
+
+            const tableFiltered = tableColumnFilters.cpCol !== null || tableColumnFilters.vencCol !== null;
+            const reporteTableFiltered = reporteTableFilters.cpCol !== null || reporteTableFilters.garantiaCol !== null || reporteTableFilters.vencCol !== null || Boolean(reporteTableFilters.search);
+            const garantiaTableFiltered = garantiaTableFilters.utCol !== null || garantiaTableFilters.garantiaCol !== null;
+
+            return Boolean(garantiaVal || searchGenVal || utNotAll || plazaNotAll || tableFiltered || reporteTableFiltered || garantiaTableFiltered);
+        }
+
+        function updateFloatingResetButton() {
+            const btn = document.getElementById('floating-reset-btn');
+            if (!btn) return;
+
+            if (hasActiveFilters()) {
+                btn.classList.remove('hidden');
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+
+        function resetFilters() {
+            document.getElementById('search-general').value = '';
+            document.getElementById('slicer-garantia').value = '';
+            selectAllUT(true);
+            selectAllPlazas(true);
+            clearTableFilters();
+            clearReporteTableFilters();
+            clearGarantiaTableFilters();
+            filteredData = [...rawData];
+            updateDashboard();
+        }
+    </script>
+</body>
+</html>

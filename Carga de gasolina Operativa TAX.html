@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desempeño TR2</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS para lectura local de Excel (.xlsx, .xls, .xlsb, .xlsm, .csv) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js para gráficos interactivos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome para iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        estafetaRed: '#DA291C',
+                        estafetaDark: '#1e293b',
+                        estafetaLight: '#f8fafc'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .top-bar { 
+            display: flex; 
+            justify-content: flex-end; 
+            align-items: center;
+            background: #DA291C; /* Rojo Estafeta */
+            padding: 10px 20px;
+        }
+        .multiselect-dropdown {
+            position: relative;
+            width: 100%;
+            max-width: 220px;
+        }
+        .multiselect-header {
+            background-color: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.5rem;
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+        }
+        .multiselect-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #cbd5e1;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            max-height: 220px;
+            overflow-y: auto;
+            z-index: 50;
+            display: none;
+            padding: 0.5rem;
+        }
+        .multiselect-list.show {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased">
+
+    <!-- Header con la nueva clase top-bar y color Rojo Estafeta -->
+    <header class="top-bar text-white shadow-md border-b-4 border-slate-900">
+        <div class="max-w-7xl mx-auto w-full px-4 py-2 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white text-[#DA291C] p-3 rounded-lg font-black text-xl tracking-wider shadow">
+                    ESTAFETA
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold">Desempeño TR2</h1>
+                    <p class="text-xs text-slate-100">Torre de Control & Operación Logística</p>
+                </div>
+            </div>
+
+            <!-- Header Action Buttons (Upload / Drag-Drop & Clear) -->
+            <div class="flex items-center gap-3">
+                <div id="drop-zone" class="bg-red-700 hover:bg-red-800 text-sm px-4 py-2 rounded-lg border border-red-600 flex items-center space-x-2 cursor-pointer transition">
+                    <i class="fa-solid fa-cloud-arrow-up text-white"></i>
+                    <span id="file-name" class="truncate max-w-[200px]">Cargar / Arrastrar Excel</span>
+                    <input type="file" id="excel-file" class="hidden" accept=".xlsx, .xls, .xlsb, .xlsm, .csv">
+                </div>
+                <button id="header-reset-btn" class="bg-red-900 hover:bg-red-950 text-slate-200 text-sm font-semibold px-4 py-2 rounded-lg border border-red-800 transition flex items-center space-x-1.5">
+                    <i class="fa-solid fa-trash-can text-white"></i>
+                    <span>Limpiar</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Dashboard Container (Oculto por defecto hasta cargar Excel) -->
+    <main id="dashboard-container" class="max-w-7xl mx-auto px-4 py-6 space-y-6 hidden">
+
+        <!-- Global Filters Bar -->
+        <div class="bg-white p-4 rounded-xl shadow-sm flex flex-wrap gap-4 items-center justify-between">
+            <div class="flex flex-wrap gap-3 items-center w-full">
+                <span class="font-semibold text-sm text-slate-700"><i class="fa-solid fa-filter text-[#DA291C] mr-1"></i> Filtros Activos:</span>
+                <select id="filter-regional" class="bg-slate-50 border border-slate-300 text-sm rounded-lg px-3 py-1.5 focus:ring-[#DA291C] focus:border-[#DA291C]">
+                    <option value="">Todas las Regionales</option>
+                </select>
+                <select id="filter-plaza" class="bg-slate-50 border border-slate-300 text-sm rounded-lg px-3 py-1.5 focus:ring-[#DA291C] focus:border-[#DA291C]">
+                    <option value="">Todas las Plazas</option>
+                </select>
+                
+                <!-- Filtro de Rutas -->
+                <div class="multiselect-dropdown" id="multiselect-rutas-container">
+                    <div class="multiselect-header" id="rutas-header">
+                        <span id="rutas-header-text">Rutas (Todas)</span>
+                        <i class="fa-solid fa-chevron-down text-xs text-slate-500"></i>
+                    </div>
+                    <div class="multiselect-list" id="rutas-list-box">
+                        <div class="flex justify-between items-center mb-2 pb-1 border-b border-slate-200 text-xs font-semibold">
+                            <span id="rutas-select-all" class="text-[#DA291C] cursor-pointer hover:underline">Todas</span>
+                            <span id="rutas-clear-all" class="text-slate-500 cursor-pointer hover:underline">Ninguna</span>
+                        </div>
+                        <div id="rutas-checkboxes-container" class="space-y-1">
+                            <div class="text-xs text-slate-400">Sin datos cargados</div>
+                        </div>
+                    </div>
+                </div>
+
+                <select id="filter-vehiculo" class="bg-slate-50 border border-slate-300 text-sm rounded-lg px-3 py-1.5 focus:ring-[#DA291C] focus:border-[#DA291C]">
+                    <option value="">Todos los Tipos de Vehículo</option>
+                </select>
+                <select id="filter-cumplimiento" class="bg-slate-50 border border-slate-300 text-sm rounded-lg px-3 py-1.5 focus:ring-[#DA291C] focus:border-[#DA291C]">
+                    <option value="">Todo Cumplimiento</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- KPI Cards Grid con Iconos y Efecto Hover (Sobresalir) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Tarjeta 1 -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-blue-600 transition-all duration-300 hover:-translate-y-1 hover:shadow-md flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Rendimiento Objetivo</p>
+                    <h3 id="kpi-rendimiento-objetivo" class="text-2xl font-bold text-slate-800 mt-1">0.00 Km/L</h3>
+                    <span class="text-xs text-slate-400">Meta promedio</span>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center text-xl shadow-inner">
+                    <i class="fa-solid fa-bullseye"></i>
+                </div>
+            </div>
+            <!-- Tarjeta 2 -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-emerald-600 transition-all duration-300 hover:-translate-y-1 hover:shadow-md flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Recorrido Total</p>
+                    <h3 id="kpi-recorrido" class="text-2xl font-bold text-slate-800 mt-1">0 Km</h3>
+                    <span class="text-xs text-slate-400">Kilometraje acumulado</span>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl shadow-inner">
+                    <i class="fa-solid fa-route"></i>
+                </div>
+            </div>
+            <!-- Tarjeta 3 -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-amber-500 transition-all duration-300 hover:-translate-y-1 hover:shadow-md flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Pérdida Económica</p>
+                    <h3 id="kpi-perdida" class="text-2xl font-bold text-slate-800 mt-1">$0.00</h3>
+                    <span class="text-xs text-slate-400">Desviaciones vs objetivo</span>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center text-xl shadow-inner">
+                    <i class="fa-solid fa-triangle-exclamation"></i>
+                </div>
+            </div>
+            <!-- Tarjeta 4 -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-purple-600 transition-all duration-300 hover:-translate-y-1 hover:shadow-md flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Rendimiento Real</p>
+                    <h3 id="kpi-rendimiento-real" class="text-2xl font-bold text-slate-800 mt-1">0.00 Km/L</h3>
+                    <span class="text-xs text-slate-400">Promedio real</span>
+                </div>
+                <div class="w-12 h-12 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-xl shadow-inner">
+                    <i class="fa-solid fa-gauge-high"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="bg-white p-5 rounded-xl shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-slate-700 text-base"><i class="fa-solid fa-chart-bar text-[#DA291C] mr-2"></i>Ruta por plaza</h3>
+                    <span class="text-xs text-slate-400">Filtrado por Ruta 2</span>
+                </div>
+                <div class="relative h-72">
+                    <canvas id="chartRegional"></canvas>
+                </div>
+            </div>
+
+            <!-- Tabla: Rendimiento X Ruta -->
+            <div class="bg-white p-5 rounded-xl shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-slate-700 text-base"><i class="fa-solid fa-table text-[#DA291C] mr-2"></i>Rendimiento X Ruta</h3>
+                    <div class="flex items-center space-x-2">
+                        <select id="sort-rendimiento-real" class="bg-slate-50 border border-slate-300 text-xs rounded-lg px-2 py-1 focus:ring-[#DA291C] focus:border-[#DA291C]">
+                            <option value="">Ordenar Rend. Real</option>
+                            <option value="desc">Mayor a menor</option>
+                            <option value="asc">Menor a mayor</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="overflow-x-auto h-72">
+                    <table class="min-w-full divide-y divide-slate-200 text-xs text-left" id="table-rendimiento-x-ruta">
+                        <thead class="bg-slate-50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 font-semibold text-slate-600" id="th-rendimiento-c">Columna C</th>
+                                <th class="px-3 py-2 font-semibold text-slate-600" id="th-rendimiento-y">Columna Y</th>
+                                <th class="px-3 py-2 font-semibold text-slate-600" id="th-rendimiento-z">Columna Z</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody-rendimiento-x-ruta" class="divide-y divide-slate-200 bg-white">
+                            <tr>
+                                <td colspan="3" class="px-3 py-4 text-center text-slate-400">Sin datos cargados</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-3 pt-2 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
+                    <span id="contador-rendimiento-ruta">0 registros</span>
+                </div>
+            </div>
+
+            <div class="bg-white p-5 rounded-xl shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-slate-700 text-base"><i class="fa-solid fa-circle-check text-[#DA291C] mr-2"></i>Cumplimiento</h3>
+                    <span class="text-xs text-slate-400">Clic para filtrar</span>
+                </div>
+                <div class="relative h-72 flex justify-center">
+                    <canvas id="chartCumplimiento"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data Table Section -->
+        <div class="bg-white p-6 rounded-xl shadow-sm">
+            <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                <h3 class="font-bold text-slate-800 text-lg"><i class="fa-solid fa-table text-[#DA291C] mr-2"></i>Detalle de Registros de Rendimiento</h3>
+                <div class="flex items-center space-x-2 w-full md:w-auto">
+                    <input type="text" id="table-search" placeholder="Buscar económico, operador, plaza..." class="bg-slate-50 border border-slate-300 text-sm rounded-lg px-3 py-1.5 w-full md:w-64 focus:ring-[#DA291C] focus:border-[#DA291C]">
+                    <button id="export-csv" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition whitespace-nowrap">
+                        <i class="fa-solid fa-file-excel mr-1"></i> Exportar Excel/CSV
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table id="data-table" class="min-w-full text-xs text-left">
+                    <thead class="bg-slate-50 sticky top-0">
+                        <tr>
+                            <th class="px-3 py-3 font-semibold text-slate-600">Fecha</th>
+                            <th id="th-col-c" class="px-3 py-3 font-semibold text-slate-600">Rutas</th>
+                            <th class="px-3 py-3 font-semibold text-slate-600">Regional</th>
+                            <th class="px-3 py-3 font-semibold text-slate-600">Plaza (Col. F)</th>
+                            <th class="px-3 py-3 font-semibold text-slate-600">Vehículo</th>
+                            <th class="px-3 py-3 font-semibold text-slate-600">Litros Consumidos</th>
+                            <th class="px-3 py-3 font-semibold text-slate-600">Rend. Objetivo</th>
+                            <th class="px-3 py-3 font-semibold text-slate-600">Rend. Real</th>
+                            <th class="px-3 py-3 font-semibold text-slate-600">Cumplimiento</th>
+                            <th class="px-3 py-3 font-semibold text-slate-600">Operador</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="bg-white">
+                        <tr>
+                            <td colspan="10" class="px-3 py-4 text-center text-slate-400">Sin datos cargados</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-3 text-xs text-slate-500 flex flex-col sm:flex-row justify-between items-center gap-2">
+                <span id="table-count">Mostrando 0 de 0 registros</span>
+                <div id="pagination-controls" class="flex items-center space-x-1"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Estado Inicial / Placeholder de Bienvenida -->
+    <div id="welcome-state" class="max-w-4xl mx-auto px-4 py-20 text-center hidden">
+        <div class="bg-white p-10 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center justify-center space-y-4">
+            <div class="w-20 h-20 bg-[#DA291C]/10 text-[#DA291C] rounded-full flex items-center justify-center text-3xl shadow-inner">
+                <i class="fa-solid fa-file-excel"></i>
+            </div>
+            <h2 class="text-2xl font-bold text-slate-800 hidden">Ningún archivo cargado</h2>
+            <p class="text-sm text-slate-500 max-w-md hidden">
+                Por favor, carga o arrastra un archivo de Excel compatible utilizando el botón superior <span class="font-semibold text-slate-700">"Cargar / Arrastrar Excel"</span> para visualizar el tablero de desempeño.
+            </p>
+        </div>
+    </div>
+
+    <!-- Botón Flotante para Limpiar Filtros -->
+    <button id="floatingClearFiltersBtn" onclick="resetAllFilters()" style="
+      position: fixed;
+      bottom: 25px;
+      right: 25px;
+      background-color: #1e293b;
+      color: #ffffff;
+      border: none;
+      padding: 12px 22px;
+      border-radius: 30px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      z-index: 9999;
+      transition: background-color 0.2s ease, transform 0.2s ease;
+    " onmouseover="this.style.backgroundColor='#0f172a'" onmouseout="this.style.backgroundColor='#1e293b'">
+      <i class="fa-solid fa-rotate-left"></i>
+      <span id="floatingClearFiltersText">Limpiar Filtros (0)</span>
+    </button>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 mt-12 py-6 text-center text-xs text-slate-500">
+        <p class="hidden">Dashboard Analítico Estafeta — Procesamiento Local Seguro con SheetJS y Chart.js</p>
+    </footer>
+
+    <!-- Script de Funcionalidad y Dashboard -->
+    <script>
+        // Verificación de Autenticación, Decodificación Base64 y Control de Inactividad (30 min)
+        window.addEventListener('DOMContentLoaded', () => {
+            // 1. Consultar el rol activo codificado guardado en el navegador
+            const encodedRole = localStorage.getItem('auth_role');
+            
+            if (!encodedRole) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            let rol = '';
+            try {
+                // Decodificamos el Base64 para evitar modificaciones simples desde la consola
+                const decoded = atob(encodedRole);
+                const parts = decoded.split('|');
+                if (parts.length >= 1) {
+                    rol = parts[0];
+                }
+            } catch (e) {
+                // Si el valor fue alterado y no es un Base64 válido, redirigir al login
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            if (!rol) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            // 2. Control de Inactividad (Cierre automático de sesión a los 30 minutos)
+            let inactivityTimer;
+            const maxInactivityMinutes = 30; // Puedes ajustar los minutos aquí
+
+            function resetInactivityTimer() {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(() => {
+                    alert("Su sesión ha expirado por inactividad.");
+                    localStorage.removeItem('auth_role');
+                    window.location.href = 'Panel de Control Operativo.html';
+                }, maxInactivityMinutes * 60 * 1000);
+            }
+
+            // Registrar eventos del usuario para reiniciar el contador de inactividad
+            ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
+                window.addEventListener(event, resetInactivityTimer);
+            });
+            resetInactivityTimer();
+
+            // 3. Aplicar restricciones de seguridad si NO es administrador
+            if (rol !== 'admin') {
+                console.log("Aplicando medidas de seguridad en este módulo.");
+                
+                // Bloquear Clic Secundario
+                document.addEventListener('contextmenu', e => e.preventDefault());
+
+                // Bloquear Selección de Texto
+                document.addEventListener('selectstart', e => e.preventDefault());
+
+                // Bloquear Copiar
+                document.addEventListener('copy', e => e.preventDefault());
+            } else {
+                console.warn("Modo Administrador: Módulo libre sin restricciones.");
+            }
+        });
+
+        let rawData = [];
+        let filteredData = [];
+        let charts = {};
+        let colWKey = 'Litros consumidos'; 
+        let colYKey = '';
+        let colZKey = '';
+        let plazaKey = 'Plaza'; 
+        let rutasKey = '';      
+        let selectedRutas = new Set(); 
+        let allAvailableRutas = [];
+
+        let currentPage = 1;
+        const rowsPerPage = 10;
+        const minRows = 9;
+
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('excel-file');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-white', 'bg-red-800'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('border-white', 'bg-red-800'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-white', 'bg-red-800');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        function validarArchivo(encabezados) {
+            if (!encabezados || encabezados.length === 0) return false;
+            const normalizados = encabezados.map(h => String(h).trim().toLowerCase());
+            return normalizados.includes("fecha val") && 
+                   normalizados.includes("razon soacial de establecimientos") && 
+                   normalizados.includes("precio unitario (sin iva)");
+        }
+
+        function updateFloatingClearFiltersButton() {
+            let activeFiltersCount = 0;
+
+            const regVal = document.getElementById('filter-regional').value;
+            const plazaVal = document.getElementById('filter-plaza').value;
+            const vehiculoVal = document.getElementById('filter-vehiculo').value;
+            const cumplimientoVal = document.getElementById('filter-cumplimiento').value;
+            const searchTerm = document.getElementById('table-search').value.trim();
+
+            if (regVal) activeFiltersCount++;
+            if (plazaVal) activeFiltersCount++;
+            if (vehiculoVal) activeFiltersCount++;
+            if (cumplimientoVal) activeFiltersCount++;
+            if (searchTerm) activeFiltersCount++;
+
+            if (allAvailableRutas.length > 0 && selectedRutas.size < allAvailableRutas.length) {
+                activeFiltersCount++;
+            }
+
+            const floatingBtn = document.getElementById('floatingClearFiltersBtn');
+            const floatingText = document.getElementById('floatingClearFiltersText');
+
+            if (floatingBtn && floatingText) {
+                floatingText.textContent = `Limpiar Filtros (${activeFiltersCount})`;
+                if (activeFiltersCount > 0) {
+                    floatingBtn.style.display = 'inline-flex';
+                } else {
+                    floatingBtn.style.display = 'none';
+                }
+            }
+        }
+
+        function resetAllFilters() {
+            document.getElementById('filter-regional').value = '';
+            document.getElementById('filter-plaza').value = '';
+            document.getElementById('filter-vehiculo').value = '';
+            document.getElementById('filter-cumplimiento').value = '';
+            document.getElementById('table-search').value = '';
+            document.getElementById('sort-rendimiento-real').value = '';
+
+            if (allAvailableRutas.length > 0) {
+                selectedRutas = new Set(allAvailableRutas);
+            }
+
+            document.querySelectorAll('#rutas-checkboxes-container input[type="checkbox"]').forEach(cb => cb.checked = true);
+            updateRutasHeaderText();
+
+            currentPage = 1;
+            applyFilters();
+        }
+
+        document.getElementById('header-reset-btn').addEventListener('click', () => {
+            rawData = [];
+            filteredData = [];
+            selectedRutas.clear();
+            allAvailableRutas = [];
+            fileInput.value = '';
+            currentPage = 1;
+            document.getElementById('file-name').textContent = 'Cargar / Arrastrar Excel';
+            
+            document.getElementById('dashboard-container').classList.add('hidden');
+            document.getElementById('welcome-state').classList.add('hidden');
+
+            document.getElementById('filter-regional').innerHTML = '<option value="">Todas las Regionales</option>';
+            document.getElementById('filter-plaza').innerHTML = '<option value="">Todas las Plazas</option>';
+            document.getElementById('filter-vehiculo').innerHTML = '<option value="">Todos los Tipos de Vehículo</option>';
+            document.getElementById('filter-cumplimiento').innerHTML = '<option value="">Todo Cumplimiento</option>';
+            document.getElementById('table-search').value = '';
+            document.getElementById('sort-rendimiento-real').value = '';
+
+            document.getElementById('rutas-checkboxes-container').innerHTML = `<div class="text-xs text-slate-400">Sin datos cargados</div>`;
+            document.getElementById('rutas-header-text').textContent = 'Rutas (Todas)';
+
+            document.getElementById('kpi-rendimiento-objetivo').textContent = '0.00 Km/L';
+            document.getElementById('kpi-recorrido').textContent = '0 Km';
+            document.getElementById('kpi-perdida').textContent = '$0.00';
+            document.getElementById('kpi-rendimiento-real').textContent = '0.00 Km/L';
+
+            Object.values(charts).forEach(chart => chart.destroy());
+            charts = {};
+
+            document.getElementById('tbody-rendimiento-x-ruta').innerHTML = `<tr><td colspan="3" class="px-3 py-4 text-center text-slate-400">Sin datos cargados</td></tr>`;
+            document.getElementById('contador-rendimiento-ruta').textContent = '0 registros';
+
+            document.getElementById('table-body').innerHTML = `<tr><td colspan="10" class="px-3 py-4 text-center text-slate-400">Sin datos cargados</td></tr>`;
+            document.getElementById('table-count').textContent = 'Mostrando 0 de 0 registros';
+            document.getElementById('pagination-controls').innerHTML = '';
+
+            updateFloatingClearFiltersButton();
+        });
+
+        const rutasHeader = document.getElementById('rutas-header');
+        const rutasListBox = document.getElementById('rutas-list-box');
+        rutasHeader.addEventListener('click', (e) => {
+            e.stopPropagation();
+            rutasListBox.classList.toggle('show');
+        });
+        document.addEventListener('click', (e) => {
+            if (!document.getElementById('multiselect-rutas-container').contains(e.target)) {
+                rutasListBox.classList.remove('show');
+            }
+        });
+
+        document.getElementById('sort-rendimiento-real').addEventListener('change', updateRendimientoXRutaTable);
+
+        function handleFile(file) {
+            document.getElementById('file-name').textContent = file.name;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                
+                const jsonRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+                if (jsonRows.length > 0) {
+                    const headers = jsonRows[0];
+
+                    if (!validarArchivo(headers)) {
+                        alert('El archivo cargado no contiene la estructura o encabezados requeridos ("Fecha Val", "Razon Soacial de Establecimientos", "Precio Unitario (sin IVA)").');
+                        document.getElementById('header-reset-btn').click();
+                        return;
+                    }
+                    
+                    if (headers.length > 2 && headers[2]) {
+                        rutasKey = headers[2];
+                    }
+                    if (rutasKey) {
+                        document.getElementById('th-col-c').textContent = rutasKey;
+                        const thC = document.getElementById('th-rendimiento-c');
+                        if (thC) thC.textContent = rutasKey;
+                    }
+
+                    if (headers.length > 5 && headers[5]) {
+                        plazaKey = headers[5];
+                    }
+
+                    if (headers.length > 22 && headers[22]) {
+                        colWKey = headers[22];
+                    }
+
+                    if (headers.length > 24 && headers[24]) {
+                        colYKey = headers[24];
+                        const thY = document.getElementById('th-rendimiento-y');
+                        if (thY) thY.textContent = colYKey;
+                    }
+                    if (headers.length > 25 && headers[25]) {
+                        colZKey = headers[25];
+                        const thZ = document.getElementById('th-rendimiento-z');
+                        if (thZ) thZ.textContent = colZKey;
+                    }
+
+                    rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+                } else {
+                    rawData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+                }
+
+                document.getElementById('welcome-state').classList.add('hidden');
+                document.getElementById('dashboard-container').classList.remove('hidden');
+
+                initializeDashboard();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function initializeDashboard() {
+            filteredData = [...rawData];
+            currentPage = 1;
+            allAvailableRutas = [...new Set(rawData.map(row => row[rutasKey]).filter(Boolean))];
+            selectedRutas = new Set(allAvailableRutas);
+
+            updateFilterOptions(rawData);
+            updateDashboard();
+            updateFloatingClearFiltersButton();
+        }
+
+        function updateFilterOptions(currentDataset) {
+            const regVal = document.getElementById('filter-regional').value;
+            const plazaVal = document.getElementById('filter-plaza').value;
+            const vehiculoVal = document.getElementById('filter-vehiculo').value;
+            const cumplimientoVal = document.getElementById('filter-cumplimiento').value;
+
+            const getUnique = (keySelector) => [...new Set(currentDataset.map(keySelector).filter(Boolean))].sort();
+
+            const regionales = getUnique(row => row['Regional']);
+            const plazas = getUnique(row => row[plazaKey]);
+            const vehiculos = getUnique(row => row['Tipo de Vehiculo'] || row['Vehiculo']);
+            const cumplimientos = getUnique(row => row['Cumplimiento']);
+
+            populateSelect('filter-regional', regionales, regVal);
+            populateSelect('filter-plaza', plazas, plazaVal);
+            populateRutasCheckboxes(currentDataset);
+            populateSelect('filter-vehiculo', vehiculos, vehiculoVal);
+            populateSelect('filter-cumplimiento', cumplimientos, cumplimientoVal);
+        }
+
+        function populateSelect(id, items, currentValue) {
+            const select = document.getElementById(id);
+            const defaultText = select.options[0].text;
+            select.innerHTML = `<option value="">${defaultText}</option>`;
+            items.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item;
+                opt.textContent = item;
+                if (item === currentValue) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        function populateRutasCheckboxes(currentDataset) {
+            const container = document.getElementById('rutas-checkboxes-container');
+            const uniqueRutas = [...new Set(currentDataset.map(row => row[rutasKey]).filter(Boolean))].sort();
+
+            if (uniqueRutas.length === 0) {
+                container.innerHTML = `<div class="text-xs text-slate-400">No hay rutas disponibles</div>`;
+                return;
+            }
+
+            container.innerHTML = '';
+            uniqueRutas.forEach(ruta => {
+                const label = document.createElement('label');
+                label.className = 'flex items-center space-x-2 text-xs py-1 px-1 hover:bg-slate-50 rounded cursor-pointer';
+                
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.value = ruta;
+                checkbox.checked = selectedRutas.has(ruta);
+                checkbox.className = 'rounded border-slate-300 text-[#DA291C] focus:ring-[#DA291C]';
+                
+                checkbox.addEventListener('change', () => {
+                    if (checkbox.checked) {
+                        selectedRutas.add(ruta);
+                    } else {
+                        selectedRutas.delete(ruta);
+                    }
+                    updateRutasHeaderText();
+                    applyFilters();
+                });
+
+                const span = document.createElement('span');
+                span.textContent = ruta;
+                span.className = 'text-slate-700 truncate';
+
+                label.appendChild(checkbox);
+                label.appendChild(span);
+                container.appendChild(label);
+            });
+
+            updateRutasHeaderText();
+        }
+
+        function updateRutasHeaderText() {
+            const checkboxes = document.querySelectorAll('#rutas-checkboxes-container input[type="checkbox"]');
+            const totalRutasCount = checkboxes.length;
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const headerText = document.getElementById('rutas-header-text');
+
+            if (checkedCount === 0) {
+                headerText.textContent = 'Rutas (Ninguna)';
+            } else if (checkedCount === totalRutasCount) {
+                headerText.textContent = 'Rutas (Todas)';
+            } else {
+                headerText.textContent = `Rutas (${checkedCount} sel.)`;
+            }
+        }
+
+        document.getElementById('rutas-select-all').addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('#rutas-checkboxes-container input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                cb.checked = true;
+                selectedRutas.add(cb.value);
+            });
+            updateRutasHeaderText();
+            applyFilters();
+        });
+
+        document.getElementById('rutas-clear-all').addEventListener('click', () => {
+            const checkboxes = document.querySelectorAll('#rutas-checkboxes-container input[type="checkbox"]');
+            const regVal = document.getElementById('filter-regional').value;
+            const plazaVal = document.getElementById('filter-plaza').value;
+            const vehiculoVal = document.getElementById('filter-vehiculo').value;
+            const cumplimientoVal = document.getElementById('filter-cumplimiento').value;
+
+            checkboxes.forEach(cb => {
+                cb.checked = false;
+                selectedRutas.delete(cb.value);
+            });
+            
+            updateRutasHeaderText();
+            applyFilters();
+
+            document.getElementById('filter-regional').value = regVal;
+            document.getElementById('filter-plaza').value = plazaVal;
+            document.getElementById('filter-vehiculo').value = vehiculoVal;
+            document.getElementById('filter-cumplimiento').value = cumplimientoVal;
+        });
+
+        document.getElementById('filter-regional').addEventListener('change', () => { currentPage = 1; applyFilters(); });
+        document.getElementById('filter-plaza').addEventListener('change', () => { currentPage = 1; applyFilters(); });
+        document.getElementById('filter-vehiculo').addEventListener('change', () => { currentPage = 1; applyFilters(); });
+        document.getElementById('filter-cumplimiento').addEventListener('change', () => { currentPage = 1; applyFilters(); });
+
+        document.getElementById('table-search').addEventListener('input', (e) => {
+            currentPage = 1;
+            applyFilters();
+        });
+
+        function applyFilters() {
+            const regVal = document.getElementById('filter-regional').value;
+            const plazaVal = document.getElementById('filter-plaza').value;
+            const vehiculoVal = document.getElementById('filter-vehiculo').value;
+            const cumplimientoVal = document.getElementById('filter-cumplimiento').value;
+            const searchTerm = document.getElementById('table-search').value.toLowerCase();
+
+            filteredData = rawData.filter(row => {
+                const r = row['Regional'] || '';
+                const p = row[plazaKey] || '';
+                const rt = row[rutasKey] || '';
+                const v = row['Tipo de Vehiculo'] || row['Vehiculo'] || '';
+                const c = row['Cumplimiento'] || '';
+
+                const matchesRuta = selectedRutas.has(rt);
+
+                const matchesFilters = (!regVal || r === regVal) &&
+                                       (!plazaVal || p === plazaVal) &&
+                                       matchesRuta &&
+                                       (!vehiculoVal || v === vehiculoVal) &&
+                                       (!cumplimientoVal || c === cumplimientoVal);
+
+                if (!matchesFilters) return false;
+
+                if (searchTerm) {
+                    const rowString = Object.values(row).join(' ').toLowerCase();
+                    return rowString.includes(searchTerm);
+                }
+
+                return true;
+            });
+
+            updateCascadingOptions(regVal, plazaVal, vehiculoVal, cumplimientoVal);
+            updateDashboard();
+            updateFloatingClearFiltersButton();
+        }
+
+        function updateCascadingOptions(reg, plaza, vehiculo, cump) {
+            const filterByOthers = (excludeField) => {
+                return rawData.filter(row => {
+                    const r = row['Regional'] || '';
+                    const p = row[plazaKey] || '';
+                    const rt = row[rutasKey] || '';
+                    const v = row['Tipo de Vehiculo'] || row['Vehiculo'] || '';
+                    const c = row['Cumplimiento'] || '';
+
+                    if (excludeField !== 'reg' && reg && r !== reg) return false;
+                    if (excludeField !== 'plaza' && plaza && p !== plaza) return false;
+                    if (excludeField !== 'rutas' && selectedRutas.size > 0 && !selectedRutas.has(rt)) return false;
+                    if (excludeField !== 'vehiculo' && vehiculo && v !== vehiculo) return false;
+                    if (excludeField !== 'cump' && cump && c !== cump) return false;
+                    return true;
+                });
+            };
+
+            const getUniqueFromSub = (subData, selectorFn) => [...new Set(subData.map(selectorFn).filter(Boolean))].sort();
+
+            const subReg = filterByOthers('reg');
+            populateSelect('filter-regional', getUniqueFromSub(subReg, r => r['Regional']), reg);
+
+            const subPlaza = filterByOthers('plaza');
+            populateSelect('filter-plaza', getUniqueFromSub(subPlaza, r => r[plazaKey]), plaza);
+
+            const subRutasData = filterByOthers('rutas');
+            populateRutasCheckboxes(subRutasData);
+
+            const subVeh = filterByOthers('vehiculo');
+            populateSelect('filter-vehiculo', getUniqueFromSub(subVeh, r => r['Tipo de Vehiculo'] || r['Vehiculo']), vehiculo);
+
+            const subCump = filterByOthers('cump');
+            populateSelect('filter-cumplimiento', getUniqueFromSub(subCump, r => r['Cumplimiento']), cump);
+        }
+
+        function updateDashboard() {
+            updateKPIs();
+            updateCharts();
+            updateRendimientoXRutaTable();
+            updateTable();
+        }
+
+        function updateKPIs() {
+            let totalRecorrido = 0, totalPerdida = 0;
+            let sumRendReal = 0, countRendReal = 0;
+            let sumRendObj = 0, countRendObj = 0;
+
+            filteredData.forEach(row => {
+                totalRecorrido += Number(row['Recorrido'] || 0);
+                totalPerdida += Number(row['Perdida economica'] || 0);
+                
+                const rendReal = Number(row['Rendimiento Real'] || 0);
+                if (rendReal > 0) { sumRendReal += rendReal; countRendReal++; }
+
+                const rendObj = Number(row['Rendimiento Objetivo'] || 0);
+                if (rendObj > 0) { sumRendObj += rendObj; countRendObj++; }
+            });
+
+            document.getElementById('kpi-rendimiento-objetivo').textContent = (countRendObj ? sumRendObj / countRendObj : 0).toFixed(2) + ' Km/L';
+            document.getElementById('kpi-recorrido').textContent = totalRecorrido.toLocaleString('es-MX', {maximumFractionDigits: 0}) + ' Km';
+            document.getElementById('kpi-perdida').textContent = '$' + totalPerdida.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            document.getElementById('kpi-rendimiento-real').textContent = (countRendReal ? sumRendReal / countRendReal : 0).toFixed(2) + ' Km/L';
+        }
+
+        function updateCharts() {
+            Object.values(charts).forEach(chart => chart.destroy());
+
+            const chartLabels = [];
+            const valuesZ = [];
+            const valuesY = [];
+
+            const ruta2Data = filteredData.filter(row => {
+                const rt = String(row[rutasKey] || '').toLowerCase();
+                return rt.includes('ruta 2') || rt === '2' || rt.includes('2');
+            });
+            const targetRegionalData = ruta2Data.length > 0 ? ruta2Data : filteredData;
+
+            targetRegionalData.forEach(row => {
+                const label = row[plazaKey] || row['Regional'] || 'N/D';
+                chartLabels.push(label);
+                valuesZ.push(Number(row[colZKey] || 0));
+                valuesY.push(Number(row[colYKey] || 0));
+            });
+
+            charts.regional = new Chart(document.getElementById('chartRegional'), {
+                type: 'bar',
+                data: {
+                    labels: chartLabels,
+                    datasets: [
+                        { label: colZKey || 'Columna Z', data: valuesZ, backgroundColor: '#DA291C', borderRadius: 4 },
+                        { label: colYKey || 'Columna Y', data: valuesY, backgroundColor: '#1e293b', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: true, position: 'top' },
+                        tooltip: { callbacks: { title: function(tooltipItems) { return `Plaza: ${tooltipItems[0].label}`; } } }
+                    }
+                }
+            });
+
+            const cumplimientoData = {};
+            filteredData.forEach(row => {
+                let c = row['Cumplimiento'] || 'N/D';
+                const cUpper = c.toUpperCase();
+                if (cUpper === 'CUMPLE') c = 'Cumple';
+                else if (cUpper === 'MALA CAPTURA') c = 'Mala Captura';
+                else if (cUpper === 'NO CUMPLE' || cUpper === 'NO-CUMPLE') c = 'No Cumple';
+                cumplimientoData[c] = (cumplimientoData[c] || 0) + 1;
+            });
+
+            const labelsCumplimiento = Object.keys(cumplimientoData);
+            const backgroundColors = labelsCumplimiento.map(label => {
+                const l = label.toLowerCase();
+                if (l.includes('mala captura')) return '#000000';
+                if (l.includes('no')) return '#ef4444';
+                return '#10b981';
+            });
+
+            charts.cumplimiento = new Chart(document.getElementById('chartCumplimiento'), {
+                type: 'pie',
+                data: {
+                    labels: labelsCumplimiento,
+                    datasets: [{ data: Object.values(cumplimientoData), backgroundColor: backgroundColors }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    onClick: (e, elements) => {
+                        if (elements.length) {
+                            document.getElementById('filter-cumplimiento').value = labelsCumplimiento[elements[0].index];
+                            applyFilters();
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateRendimientoXRutaTable() {
+            const tbody = document.getElementById('tbody-rendimiento-x-ruta');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+
+            if (filteredData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="px-3 py-4 text-center text-slate-400">No hay registros coincidentes</td></tr>`;
+                const counterBadge = document.getElementById('contador-rendimiento-ruta');
+                if (counterBadge) counterBadge.textContent = '0 registros';
+                return;
+            }
+
+            let dataToDisplay = [...filteredData];
+            const sortVal = document.getElementById('sort-rendimiento-real')?.value;
+            if (sortVal) {
+                dataToDisplay.sort((a, b) => {
+                    const valA = Number(a['Rendimiento Real'] || 0);
+                    const valB = Number(b['Rendimiento Real'] || 0);
+                    if (sortVal === 'desc') return valB - valA;
+                    else if (sortVal === 'asc') return valA - valB;
+                    return 0;
+                });
+            }
+
+            dataToDisplay.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition';
+                tr.innerHTML = `
+                    <td class="px-3 py-2 font-medium">${row[rutasKey] || ''}</td>
+                    <td class="px-3 py-2 font-semibold text-estafetaDark">${Number(row[colYKey] || 0).toFixed(2)}</td>
+                    <td class="px-3 py-2">${Number(row[colZKey] || 0).toFixed(2)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            const counterBadge = document.getElementById('contador-rendimiento-ruta');
+            if (counterBadge) {
+                counterBadge.textContent = `${dataToDisplay.length} registro${dataToDisplay.length === 1 ? '' : 's'}`;
+            }
+        }
+
+        function updateTable() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            const totalRecords = filteredData.length;
+            const totalPages = Math.ceil(totalRecords / rowsPerPage) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            const pageItems = filteredData.slice(startIndex, endIndex);
+
+            let renderCount = pageItems.length;
+            if (renderCount < minRows) {
+                renderCount = minRows;
+            }
+
+            for (let i = 0; i < renderCount; i++) {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-50 transition';
+
+                if (i < pageItems.length) {
+                    const row = pageItems[i];
+                    let rawCump = row['Cumplimiento'] || 'N/D';
+                    let displayCump = rawCump;
+                    let badgeClass = 'bg-emerald-100 text-emerald-800';
+
+                    const rawCumpUpper = rawCump.toUpperCase();
+                    if (rawCumpUpper === 'CUMPLE') {
+                        displayCump = 'Cumple';
+                        badgeClass = 'bg-emerald-100 text-emerald-800';
+                    } else if (rawCumpUpper === 'MALA CAPTURA') {
+                        displayCump = 'Mala Captura';
+                        badgeClass = 'bg-slate-900 text-white';
+                    } else if (rawCumpUpper === 'NO CUMPLE' || rawCumpUpper === 'NO-CUMPLE') {
+                        displayCump = 'No Cumple';
+                        badgeClass = 'bg-red-100 text-red-800';
+                    } else if (rawCump.toLowerCase().includes('mala')) {
+                        displayCump = 'Mala Captura';
+                        badgeClass = 'bg-slate-900 text-white';
+                    } else if (rawCump.toLowerCase().includes('no')) {
+                        badgeClass = 'bg-red-100 text-red-800';
+                    }
+
+                    tr.innerHTML = `
+                        <td class="px-3 py-2.5">${row['Fecha'] || ''}</td>
+                        <td class="px-3 py-2.5 font-medium">${row[rutasKey] || ''}</td>
+                        <td class="px-3 py-2.5">${row['Regional'] || ''}</td>
+                        <td class="px-3 py-2.5 font-semibold text-estafetaDark">${row[plazaKey] || ''}</td>
+                        <td class="px-3 py-2.5">${row['Tipo de Vehiculo'] || row['Vehiculo'] || ''}</td>
+                        <td class="px-3 py-2.5 font-semibold text-[#DA291C]">${Number(row[colWKey] || 0).toLocaleString('es-MX')} L</td>
+                        <td class="px-3 py-2.5">${Number(row['Rendimiento Objetivo'] || 0).toFixed(2)}</td>
+                        <td class="px-3 py-2.5">${Number(row['Rendimiento Real'] || 0).toFixed(2)}</td>
+                        <td class="px-3 py-2.5"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${badgeClass}">${displayCump}</span></td>
+                        <td class="px-3 py-2.5 truncate max-w-[120px]">${row['Nombre de operador'] || ''}</td>
+                    `;
+                } else {
+                    tr.innerHTML = `
+                        <td class="px-3 py-2.5 text-transparent select-none">&nbsp;</td>
+                        <td class="px-3 py-2.5 text-transparent select-none">&nbsp;</td>
+                        <td class="px-3 py-2.5 text-transparent select-none">&nbsp;</td>
+                        <td class="px-3 py-2.5 text-transparent select-none">&nbsp;</td>
+                        <td class="px-3 py-2.5 text-transparent select-none">&nbsp;</td>
+                        <td class="px-3 py-2.5 text-transparent select-none">&nbsp;</td>
+                        <td class="px-3 py-2.5 text-transparent select-none">&nbsp;</td>
+                        <td class="px-3 py-2.5 text-transparent select-none">&nbsp;</td>
+                        <td class="px-3 py-2.5 text-transparent select-none">&nbsp;</td>
+                        <td class="px-3 py-2.5 text-transparent select-none">&nbsp;</td>
+                    `;
+                }
+                tbody.appendChild(tr);
+            }
+
+            const startDisplay = totalRecords > 0 ? startIndex + 1 : 0;
+            const endDisplay = Math.min(endIndex, totalRecords);
+            document.getElementById('table-count').textContent = `Mostrando ${startDisplay}-${endDisplay} de ${totalRecords} registros`;
+
+            renderPaginationControls(totalPages);
+        }
+
+        function renderPaginationControls(totalPages) {
+            const container = document.getElementById('pagination-controls');
+            if (!container) return;
+            container.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+            const prev = document.createElement('button');
+            prev.className = `px-2.5 py-1 rounded border text-xs ${currentPage === 1 ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`;
+            prev.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+            prev.disabled = currentPage === 1;
+            prev.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    updateTable();
+                }
+            });
+            container.appendChild(prev);
+
+            const pageInfo = document.createElement('span');
+            pageInfo.className = 'px-2 py-1 text-xs font-semibold text-slate-700';
+            pageInfo.textContent = `Pág. ${currentPage} de ${totalPages}`;
+            container.appendChild(pageInfo);
+
+            const next = document.createElement('button');
+            next.className = `px-2.5 py-1 rounded border text-xs ${currentPage === totalPages ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`;
+            next.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+            next.disabled = currentPage === totalPages;
+            next.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    updateTable();
+                }
+            });
+            container.appendChild(next);
+        }
+
+        document.getElementById('export-csv').addEventListener('click', () => {
+            if (!filteredData.length) return alert('No hay datos para exportar');
+            const worksheet = XLSX.utils.json_to_sheet(filteredData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Rendimiento Filtrado");
+            XLSX.writeFile(workbook, "Reporte_Rendimiento_Estafeta.xlsx");
+        });
+    </script>
+</body>
+</html>

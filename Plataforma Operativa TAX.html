@@ -1,0 +1,1248 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plataforma Operativa</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        estafeta: {
+                            red: '#DA291C',
+                            darkRed: '#B51E12',
+                            dark: '#1F2937',
+                            light: '#F8FAFC'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .card-shadow { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .drag-over { border: 2px dashed #DA291C; background-color: #FEF2F2; }
+        .sortable-th { cursor: pointer; user-select: none; transition: background-color 0.2s; }
+        .sortable-th:hover { background-color: #e2e8f0; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-estafeta-red text-white shadow-md">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white text-estafeta-red font-black text-xl px-3 py-1 rounded shadow">
+                    Estafeta<span class="text-xs align-super">®</span>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wide">Plataforma Operativa</h1>
+                    <p class="text-xs text-red-100">Dashboard de Monitoreo y Análisis Logístico</p>
+                </div>
+            </div>
+            
+            <!-- File Upload / Drop Zone & Filters -->
+            <div class="flex flex-wrap items-center gap-3">
+                <div id="drop-zone" class="border border-white/40 bg-red-800/40 hover:bg-red-800/60 px-4 py-2 rounded-lg text-sm flex items-center gap-2 cursor-pointer transition">
+                    <i class="fas fa-file-excel text-green-300"></i>
+                    <span id="file-name-display" class="truncate max-w-[200px]">Cargar / Arrastrar Excel</span>
+                    <input type="file" id="excel-file-input" accept=".xlsx, .xls" class="hidden">
+                </div>
+                <button id="reset-filters-btn" class="bg-white text-estafeta-red font-semibold px-3 py-2 rounded-lg text-sm hover:bg-slate-100 transition shadow">
+                    <i class="fas fa-undo mr-1"></i> Limpiar Filtros
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-6 space-y-6">
+
+        <!-- Content Container (Hidden until Excel is loaded) -->
+        <div id="dashboard-content" class="space-y-6 hidden">
+            <!-- Active Filters Bar -->
+            <div id="active-filters-container" class="bg-white p-3 rounded-xl card-shadow flex flex-wrap items-center gap-2 text-sm hidden">
+                <span class="font-semibold text-slate-600 mr-2"><i class="fas fa-filter text-estafeta-red"></i> Filtros activos:</span>
+                <div id="filter-badges" class="flex flex-wrap gap-2 items-center"></div>
+            </div>
+
+            <!-- KPIs Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+                <!-- Total Guías -->
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-slate-700 flex items-center justify-between transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl">
+                    <div>
+                        <p class="text-xs font-medium text-slate-500 uppercase tracking-wider">Total Guías</p>
+                        <h3 id="kpi-total" class="text-2xl font-black text-slate-800 mt-1">0</h3>
+                    </div>
+                    <div class="bg-slate-100 p-3 rounded-2xl text-slate-600 shadow-inner">
+                        <i class="fas fa-boxes text-lg"></i>
+                    </div>
+                </div>
+                <!-- Vencidos -->
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-red-500 flex items-center justify-between cursor-pointer transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl hover:bg-red-50/50" onclick="toggleSemaphor('Vencido')">
+                    <div>
+                        <p class="text-xs font-medium text-red-600 uppercase tracking-wider">Vencidos</p>
+                        <h3 id="kpi-vencido" class="text-2xl font-black text-red-600 mt-1">0</h3>
+                    </div>
+                    <div class="bg-red-100 p-3 rounded-2xl text-red-500 shadow-inner">
+                        <i class="fas fa-exclamation-triangle text-lg"></i>
+                    </div>
+                </div>
+                <!-- Vence Hoy -->
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-amber-500 flex items-center justify-between cursor-pointer transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl hover:bg-amber-50/50" onclick="toggleSemaphor('Vence hoy')">
+                    <div>
+                        <p class="text-xs font-medium text-amber-600 uppercase tracking-wider">Vence Hoy</p>
+                        <h3 id="kpi-hoy" class="text-2xl font-black text-amber-600 mt-1">0</h3>
+                    </div>
+                    <div class="bg-amber-100 p-3 rounded-2xl text-amber-500 shadow-inner">
+                        <i class="fas fa-calendar-day text-lg"></i>
+                    </div>
+                </div>
+                <!-- Vence Mañana -->
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-blue-500 flex items-center justify-between cursor-pointer transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl hover:bg-blue-50/50" onclick="toggleSemaphor('Vence mañana')">
+                    <div>
+                        <p class="text-xs font-medium text-blue-600 uppercase tracking-wider">Vence Mañana</p>
+                        <h3 id="kpi-mañana" class="text-2xl font-black text-blue-600 mt-1">0</h3>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-2xl text-blue-500 shadow-inner">
+                        <i class="fas fa-clock text-lg"></i>
+                    </div>
+                </div>
+                <!-- Vence en 2 días -->
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-purple-500 flex items-center justify-between cursor-pointer transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl hover:bg-purple-50/50" onclick="toggleSemaphor('Vence en 2 días')">
+                    <div>
+                        <p class="text-xs font-medium text-purple-600 uppercase tracking-wider">Vence en 2 Días</p>
+                        <h3 id="kpi-2dias" class="text-2xl font-black text-purple-600 mt-1">0</h3>
+                    </div>
+                    <div class="bg-purple-100 p-3 rounded-2xl text-purple-500 shadow-inner">
+                        <i class="fas fa-calendar-alt text-lg"></i>
+                    </div>
+                </div>
+                <!-- En tiempo -->
+                <div class="bg-white p-4 rounded-xl card-shadow border-l-4 border-emerald-500 flex items-center justify-between cursor-pointer transition-all duration-300 transform hover:-translate-y-1 hover:shadow-xl hover:bg-emerald-50/50" onclick="toggleSemaphor('En tiempo')">
+                    <div>
+                        <p class="text-xs font-medium text-emerald-600 uppercase tracking-wider">En Tiempo</p>
+                        <h3 id="kpi-tiempo" class="text-2xl font-black text-emerald-600 mt-1">0</h3>
+                    </div>
+                    <div class="bg-emerald-100 p-3 rounded-2xl text-emerald-500 shadow-inner">
+                        <i class="fas fa-check-circle text-lg"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row 1 -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- Semáforo Bar Chart -->
+                <div id="card-chartSemaforo" class="bg-white p-5 rounded-xl card-shadow flex flex-col justify-between transition-all duration-300">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-700"><i class="fas fa-chart-bar text-estafeta-red mr-2"></i> Estado (Semáforo)</h3>
+                        <div class="flex items-center gap-2">
+                            <button onclick="toggleCardFullscreen('chartSemaforo')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1" title="Expandir / Contraer">
+                                <i id="icon-fullscreen-chartSemaforo" class="fas fa-expand"></i> <span id="text-fullscreen-chartSemaforo">Expandir</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="wrapper-chartSemaforo" class="relative h-64 flex items-center justify-center">
+                        <canvas id="chartSemaforo"></canvas>
+                    </div>
+                </div>
+
+                <!-- Garantía & Tipo Bar Chart -->
+                <div id="card-chartGarantia" class="bg-white p-5 rounded-xl card-shadow flex flex-col justify-between transition-all duration-300">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-700"><i class="fas fa-chart-bar text-estafeta-red mr-2"></i> Tipo de Garantía</h3>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-400">Clic para filtrar</span>
+                            <button onclick="toggleCardFullscreen('chartGarantia')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1" title="Expandir / Contraer">
+                                <i id="icon-fullscreen-chartGarantia" class="fas fa-expand"></i> <span id="text-fullscreen-chartGarantia">Expandir</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="wrapper-chartGarantia" class="relative h-64 flex items-center justify-center">
+                        <canvas id="chartGarantia"></canvas>
+                    </div>
+                </div>
+
+                <!-- Plazas de Destino -->
+                <div id="card-chartPlazas" class="bg-white p-5 rounded-xl card-shadow flex flex-col justify-between transition-all duration-300">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-700"><i class="fas fa-map-marker-alt text-estafeta-red mr-2"></i> Plazas de Destino</h3>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-400">Top Destinos</span>
+                            <button onclick="toggleCardFullscreen('chartPlazas')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1" title="Expandir / Contraer">
+                                <i id="icon-fullscreen-chartPlazas" class="fas fa-expand"></i> <span id="text-fullscreen-chartPlazas">Expandir</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="wrapper-chartPlazas" class="relative h-64 flex items-center justify-center">
+                        <canvas id="chartPlazas"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Data Table Section -->
+            <div id="table-card-container" class="bg-white rounded-xl card-shadow overflow-hidden transition-all duration-300">
+                <div class="p-4 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <h3 class="font-bold text-slate-700"><i class="fas fa-table text-estafeta-red mr-2"></i> Detalle de Guías</h3>
+                        <span id="table-record-counter" class="bg-red-100 text-estafeta-red text-xs font-bold px-2.5 py-1 rounded-full">0 paquetes</span>
+                    </div>
+                    <div class="flex items-center gap-3 w-full sm:w-auto flex-wrap">
+                        <div class="relative w-full sm:w-64">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <input type="text" id="table-search" placeholder="Buscar guía, cliente, C.P., plaza..." class="w-full pl-9 pr-4 py-1.5 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-estafeta-red">
+                        </div>
+                        <button onclick="downloadFilteredExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3.5 py-1.5 rounded-lg text-sm transition shadow flex items-center gap-1.5 whitespace-nowrap">
+                            <i class="fas fa-file-excel"></i> Descargar Excel
+                        </button>
+                        <button id="fullscreen-table-btn" onclick="toggleTableFullscreen()" class="bg-slate-700 hover:bg-slate-800 text-white font-semibold px-3.5 py-1.5 rounded-lg text-sm transition shadow flex items-center gap-1.5 whitespace-nowrap" title="Expandir / Contraer pantalla completa">
+                            <i id="fullscreen-icon" class="fas fa-expand"></i> <span id="fullscreen-text">Expandir</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto max-h-[500px] relative">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="bg-slate-100 text-slate-600 uppercase text-xs sticky top-0 z-10">
+                            <tr>
+                                <th class="p-3 sortable-th relative" onclick="handleTableSort('Movimiento')">
+                                    <div class="flex items-center justify-between gap-1">
+                                        <span>Movimiento <span id="sort-icon-Movimiento" class="text-slate-400 ml-1">↕</span></span>
+                                        <button type="button" onclick="event.stopPropagation(); openModalFilter('Movimiento')" class="text-slate-500 hover:text-estafeta-red p-1 rounded hover:bg-slate-200 transition" title="Filtrar por movimiento">
+                                            <i class="fas fa-filter text-xs"></i>
+                                        </button>
+                                    </div>
+                                </th>
+                                <th class="p-3 sortable-th" onclick="handleTableSort('Guía')">Guía <span id="sort-icon-Guía" class="text-slate-400 ml-1">↕</span></th>
+                                <th class="p-3 sortable-th relative" onclick="handleTableSort('Semáforo')">
+                                    <div class="flex items-center justify-between gap-1">
+                                        <span>Semáforo <span id="sort-icon-Semáforo" class="text-slate-400 ml-1">↕</span></span>
+                                        <button type="button" onclick="event.stopPropagation(); openModalFilter('Semáforo')" class="text-slate-500 hover:text-estafeta-red p-1 rounded hover:bg-slate-200 transition" title="Filtrar por semáforo">
+                                            <i class="fas fa-filter text-xs"></i>
+                                        </button>
+                                    </div>
+                                </th>
+                                <th class="p-3 sortable-th relative" onclick="handleTableSort('Garantía')">
+                                    <div class="flex items-center justify-between gap-1">
+                                        <span>Garantía <span id="sort-icon-Garantía" class="text-slate-400 ml-1">↕</span></span>
+                                        <button type="button" onclick="event.stopPropagation(); openModalFilter('Garantía')" class="text-slate-500 hover:text-estafeta-red p-1 rounded hover:bg-slate-200 transition" title="Filtrar por garantía">
+                                            <i class="fas fa-filter text-xs"></i>
+                                        </button>
+                                    </div>
+                                </th>
+                                <th class="p-3 sortable-th relative" onclick="handleTableSort('C:P')">
+                                    <div class="flex items-center justify-between gap-1">
+                                        <span>C.P. <span id="sort-icon-C:P" class="text-slate-400 ml-1">↕</span></span>
+                                        <button type="button" onclick="event.stopPropagation(); openModalFilter('C:P')" class="text-slate-500 hover:text-estafeta-red p-1 rounded hover:bg-slate-200 transition" title="Filtrar por C.P.">
+                                            <i class="fas fa-filter text-xs"></i>
+                                        </button>
+                                    </div>
+                                </th>
+                                <th class="p-3 sortable-th" onclick="handleTableSort('Plaza origen')">Origen <span id="sort-icon-Plaza origen" class="text-slate-400 ml-1">↕</span></th>
+                                <th class="p-3 sortable-th" onclick="handleTableSort('Plaza Destino')">Destino <span id="sort-icon-Plaza Destino" class="text-slate-400 ml-1">↕</span></th>
+                                <th class="p-3 sortable-th" onclick="handleTableSort('Nom cliente')">Cliente <span id="sort-icon-Nom cliente" class="text-slate-400 ml-1">↕</span></th>
+                                <th class="p-3 sortable-th relative" onclick="handleTableSort('Fecha último movimiento')">
+                                    <div class="flex items-center justify-between gap-1">
+                                        <span>Último Movimiento <span id="sort-icon-Fecha último movimiento" class="text-slate-400 ml-1">↕</span></span>
+                                        <button type="button" onclick="event.stopPropagation(); openModalFilter('Fecha último movimiento')" class="text-slate-500 hover:text-estafeta-red p-1 rounded hover:bg-slate-200 transition" title="Filtrar por último movimiento">
+                                            <i class="fas fa-filter text-xs"></i>
+                                        </button>
+                                    </div>
+                                </th>
+                                <th class="p-3 sortable-th" onclick="handleTableSort('Fecha compromiso de entrega')">Compromiso <span id="sort-icon-Fecha compromiso de entrega" class="text-slate-400 ml-1">↕</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-table-body">
+                            <!-- Populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center text-xs text-slate-600 gap-2" id="table-pagination-info">
+                    <!-- Pagination populated dynamically -->
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Modal genérico para columnas de la tabla -->
+    <div id="filter-modal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
+            <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <i class="fas fa-filter text-estafeta-red"></i>
+                    <h3 id="modal-title" class="font-bold text-base">Filtrar Columna</h3>
+                </div>
+                <button type="button" onclick="closeModalFilter()" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="p-5 space-y-4 flex-grow overflow-hidden flex flex-col">
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                        <i class="fas fa-search text-xs"></i>
+                    </span>
+                    <input type="text" id="modal-search-input" placeholder="Buscar valor..." class="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-estafeta-red">
+                </div>
+
+                <div class="flex justify-between items-center text-xs px-1">
+                    <span class="text-slate-500 font-medium">Seleccionar valores:</span>
+                    <div class="space-x-2 font-semibold">
+                        <button type="button" onclick="selectAllModalCheckboxes()" class="text-estafeta-red hover:underline">Todos</button>
+                        <span class="text-slate-300">|</span>
+                        <button type="button" onclick="deselectAllModalCheckboxes()" class="text-slate-500 hover:underline">Ninguno</button>
+                    </div>
+                </div>
+
+                <div class="border border-slate-200 rounded-lg p-3 overflow-y-auto flex-grow max-h-60 space-y-2 text-sm" id="modal-checkboxes-container">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <div class="bg-slate-50 px-5 py-3 border-t border-slate-200 flex justify-end gap-3">
+                <button type="button" onclick="closeModalFilter()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-sm transition">
+                    Cancelar
+                </button>
+                <button type="button" onclick="applyModalFilter()" class="px-4 py-2 bg-estafeta-red hover:bg-estafeta-darkRed text-white font-semibold rounded-lg text-sm shadow transition">
+                    Aplicar Filtro
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Estilo Imagen para el Filtro de Plaza (Columna C) -->
+    <div id="plaza-modal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm hidden">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
+            <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <i class="fas fa-filter text-estafeta-red"></i>
+                    <h3 class="font-bold text-base" id="plaza-modal-title-text">Filtrar por Plaza</h3>
+                </div>
+                <button type="button" onclick="closePlazaModal()" class="text-slate-400 hover:text-white p-1 rounded-lg transition">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="p-5 space-y-4 flex-grow overflow-hidden flex flex-col">
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                        <i class="fas fa-search text-xs"></i>
+                    </span>
+                    <input type="text" id="plaza-modal-search" placeholder="Buscar valor..." class="w-full pl-9 pr-4 py-2 text-sm bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-estafeta-red">
+                </div>
+
+                <div class="flex justify-between items-center text-xs px-1">
+                    <span class="text-slate-500 font-medium">Seleccionar valores:</span>
+                    <div class="space-x-2 font-semibold">
+                        <button type="button" onclick="selectAllPlazaCheckboxes()" class="text-estafeta-red hover:underline">Todos</button>
+                        <span class="text-slate-300">|</span>
+                        <button type="button" onclick="deselectAllPlazaCheckboxes()" class="text-slate-500 hover:underline">Ninguno</button>
+                    </div>
+                </div>
+
+                <div class="border border-slate-200 rounded-lg p-3 overflow-y-auto flex-grow max-h-60 space-y-2 text-sm" id="plaza-modal-checkboxes-container">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <div class="bg-slate-50 px-5 py-3 border-t border-slate-200 flex justify-end gap-3">
+                <button type="button" onclick="closePlazaModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold rounded-lg text-sm transition">
+                    Cancelar
+                </button>
+                <button type="button" onclick="applyPlazaModalFilter()" class="px-4 py-2 bg-estafeta-red hover:bg-estafeta-darkRed text-white font-semibold rounded-lg text-sm shadow transition">
+                    Aplicar Filtro
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botón Flotante Inferior Izquierdo -->
+    <button id="floating-plaza-btn" onclick="openPlazaModal()" class="fixed bottom-6 left-6 z-[70] bg-estafeta-red text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-2.5 text-sm font-semibold hover:bg-estafeta-darkRed transition-all transform hover:scale-105 hidden">
+        <i class="fas fa-map-marked-alt"></i>
+        <span id="floating-plaza-btn-text">Plazas (Todas)</span>
+    </button>
+
+    <!-- Botón Flotante para Limpiar Filtros -->
+    <button id="floating-reset-btn" onclick="resetFilters()" class="fixed bottom-6 right-6 z-[70] bg-slate-900 text-white px-5 py-3 rounded-full shadow-2xl flex items-center gap-2.5 text-sm font-semibold hover:bg-slate-800 transition-all transform hover:scale-105 hidden">
+        <i class="fas fa-undo"></i>
+        <span id="floating-reset-text">Limpiar Filtros (0)</span>
+    </button>
+
+    <script>
+        /* ==========================================================================
+           PARTE 1: CÓDIGO PARA EL INDEX / LOGIN (Al iniciar sesión de forma exitosa)
+           ========================================================================== */
+        function iniciarSesionExitosa(rolSeleccionado) {
+            // rolSeleccionado debe ser 'admin' o 'user'
+            // Codificamos el rol junto con la marca de tiempo en Base64 para mayor seguridad
+            const tokenSeguro = btoa(rolSeleccionado + "|" + Date.now()); 
+            localStorage.setItem('auth_role', tokenSeguro);
+            
+            // Redirigir al módulo operativo
+            window.location.href = 'Tiempos muertos Operativo TAX.html';
+        }
+
+
+        /* ==========================================================================
+           PARTE 2: CÓDIGO PARA LOS MÓDULOS OPERATIVOS (Seguridad, Decodificación e Inactividad)
+           ========================================================================== */
+        window.addEventListener('DOMContentLoaded', () => {
+            // 1. Consultar el rol activo codificado guardado en el navegador
+            const encodedRole = localStorage.getItem('auth_role');
+            
+            if (!encodedRole) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            let rol = '';
+            try {
+                // Decodificamos el Base64 para evitar modificaciones simples desde la consola
+                const decoded = atob(encodedRole);
+                const parts = decoded.split('|');
+                if (parts.length >= 1) {
+                    rol = parts[0];
+                }
+            } catch (e) {
+                // Si el valor fue alterado y no es un Base64 válido, redirigir al login
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            if (!rol) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            // 2. Control de Inactividad (Cierre automático de sesión a los 30 minutos)
+            let inactivityTimer;
+            const maxInactivityMinutes = 30; // Puedes ajustar los minutos aquí
+
+            function resetInactivityTimer() {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(() => {
+                    alert("Su sesión ha expirado por inactividad.");
+                    localStorage.removeItem('auth_role');
+                    window.location.href = 'Panel de Control Operativo.html';
+                }, maxInactivityMinutes * 60 * 1000);
+            }
+
+            // Registrar eventos del usuario para reiniciar el contador de inactividad
+            ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
+                window.addEventListener(event, resetInactivityTimer);
+            });
+            resetInactivityTimer();
+
+            // 3. Aplicar restricciones de seguridad si NO es administrador
+            if (rol !== 'admin') {
+                console.log("Aplicando medidas de seguridad en este módulo.");
+                
+                // Bloquear Clic Secundario
+                document.addEventListener('contextmenu', e => e.preventDefault());
+
+                // Bloquear Selección de Texto
+                document.addEventListener('selectstart', e => e.preventDefault());
+
+                // Bloquear Copiar
+                document.addEventListener('copy', e => e.preventDefault());
+            } else {
+                console.warn("Modo Administrador: Módulo libre sin restricciones.");
+            }
+        });
+
+        let globalData = [];
+        let filteredData = [];
+        let plazaColumnName = 'Plaza'; 
+        const allSemaphorOptions = ['Vencido', 'Vence hoy', 'Vence mañana', 'Vence en 2 días', 'En tiempo'];
+        
+        // Paginación de la tabla
+        let currentTablePage = 0;
+        const ITEMS_PER_PAGE = 12;
+
+        let activeFilters = { 
+            semaphors: [], 
+            garantias: [], 
+            cp: [],
+            plazaDestino: null, 
+            plazaColC: [], 
+            movimientos: [],
+            ultimosMovimientos: [],
+            search: '', 
+            sortColumn: null, 
+            sortDirection: 'asc' 
+        };
+
+        let currentModalColumn = null;
+        let chartSemaforoInst = null;
+        let chartGarantiaInst = null;
+        let chartPlazasInst = null;
+
+        const semaphorColors = {
+            'Vencido': '#EF4444',
+            'Vence hoy': '#F59E0B',
+            'Vence mañana': '#3B82F6',
+            'Vence en 2 días': '#A855F7',
+            'En tiempo': '#10B981'
+        };
+
+        function validarArchivo(encabezados) {
+            if (!encabezados || encabezados.length === 0) return false;
+            const normalizados = encabezados.map(h => String(h || '').trim().toLowerCase());
+            return normalizados.includes("movimiento") && normalizados.includes("tipo") && normalizados.includes("semáforo");
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files || e.dataTransfer.files;
+            if (!files.length) return;
+            const file = files[0];
+            document.getElementById('file-name-display').textContent = file.name;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    const rawRows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                    
+                    if (rawRows.length > 1) {
+                        const headers = rawRows[0].map(h => String(h || '').trim());
+
+                        if (!validarArchivo(headers)) {
+                            alert("El archivo no tiene la estructura válida. Debe contener las columnas: Movimiento, Tipo y Semáforo.");
+                            return;
+                        }
+                        
+                        if (headers.length > 2 && headers[2]) {
+                            plazaColumnName = headers[2];
+                        }
+
+                        const cpIndex = headers.findIndex(h => {
+                            const cleanHeader = h.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                            return cleanHeader === 'CPDESTINO' || cleanHeader === 'CP' || cleanHeader === 'CODIGOPOSTAL';
+                        });
+
+                        globalData = rawRows.slice(1).map(row => {
+                            let obj = {};
+                            headers.forEach((h, index) => {
+                                if (h) obj[h] = row[index] !== undefined ? row[index] : '';
+                            });
+                            
+                            let cpVal = 'N/A';
+                            if (cpIndex !== -1 && row[cpIndex] !== undefined && row[cpIndex] !== null && String(row[cpIndex]).trim() !== '') {
+                                cpVal = String(row[cpIndex]).trim();
+                            } else {
+                                for (let key in obj) {
+                                    const cleanKey = key.toUpperCase().replace(/[^A-Z0-9]/g, '');
+                                    if ((cleanKey === 'CPDESTINO' || cleanKey === 'CP' || cleanKey === 'CODIGOPOSTAL') && obj[key]) {
+                                        cpVal = String(obj[key]).trim();
+                                        break;
+                                    }
+                                }
+                            }
+                            
+                            obj['C:P'] = cpVal;
+                            return obj;
+                        }).filter(obj => Object.keys(obj).length > 0 && obj['Guía']);
+                        
+                        document.getElementById('dashboard-content').classList.remove('hidden');
+                        document.getElementById('floating-plaza-btn').classList.remove('hidden');
+                        resetFilters();
+                        alert(`¡Archivo cargado con éxito! Se procesaron ${globalData.length} registros.`);
+                    } else {
+                        alert('El archivo Excel no contiene registros válidos.');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Error al procesar el archivo Excel. Verifique el formato.');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        const dropZone = document.getElementById('drop-zone');
+        dropZone.addEventListener('click', () => document.getElementById('excel-file-input').click());
+        document.getElementById('excel-file-input').addEventListener('change', handleFileSelect);
+
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) {
+                document.getElementById('excel-file-input').files = e.dataTransfer.files;
+                handleFileSelect({ target: { files: e.dataTransfer.files } });
+            }
+        });
+
+        // Funciones para el Modal de Plaza (Columna C)
+        function openPlazaModal() {
+            const modal = document.getElementById('plaza-modal');
+            document.getElementById('plaza-modal-title-text').textContent = `Filtrar por ${plazaColumnName}`;
+            document.getElementById('plaza-modal-search').value = '';
+            populatePlazaModalCheckboxes();
+            modal.classList.remove('hidden');
+        }
+
+        function closePlazaModal() {
+            document.getElementById('plaza-modal').classList.add('hidden');
+        }
+
+        function populatePlazaModalCheckboxes() {
+            const container = document.getElementById('plaza-modal-checkboxes-container');
+            container.innerHTML = '';
+
+            const baseData = getFilteredDataExcept('plazaColC');
+            const uniqueValues = [...new Set(baseData.map(r => r[plazaColumnName] !== undefined && r[plazaColumnName] !== '' ? String(r[plazaColumnName]) : 'N/A'))].sort();
+
+            if (uniqueValues.length === 0) {
+                container.innerHTML = '<span class="text-slate-400 text-sm">No hay valores disponibles</span>';
+                return;
+            }
+
+            let htmlString = '';
+            uniqueValues.forEach(val => {
+                const isChecked = activeFilters.plazaColC.includes(val);
+                htmlString += `
+                    <label class="flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 p-1.5 rounded plaza-checkbox-label">
+                        <input type="checkbox" value="${val}" ${isChecked ? 'checked' : ''} class="plaza-item-checkbox rounded text-estafeta-red focus:ring-estafeta-red w-4 h-4">
+                        <span class="truncate text-slate-700 font-medium">${val}</span>
+                    </label>
+                `;
+            });
+            container.innerHTML = htmlString;
+        }
+
+        let plazaSearchTimeout;
+        const plazaModalSearch = document.getElementById('plaza-modal-search');
+        if (plazaModalSearch) {
+            plazaModalSearch.addEventListener('input', () => {
+                clearTimeout(plazaSearchTimeout);
+                plazaSearchTimeout = setTimeout(() => {
+                    const searchVal = plazaModalSearch.value.toLowerCase();
+                    const labels = document.querySelectorAll('.plaza-checkbox-label');
+                    labels.forEach(label => {
+                        const text = label.querySelector('span').textContent.toLowerCase();
+                        label.style.display = text.includes(searchVal) ? 'flex' : 'none';
+                    });
+                }, 250);
+            });
+        }
+
+        function selectAllPlazaCheckboxes() {
+            document.querySelectorAll('.plaza-item-checkbox').forEach(cb => {
+                if (cb.closest('label').style.display !== 'none') cb.checked = true;
+            });
+        }
+
+        function deselectAllPlazaCheckboxes() {
+            document.querySelectorAll('.plaza-item-checkbox').forEach(cb => {
+                if (cb.closest('label').style.display !== 'none') cb.checked = false;
+            });
+        }
+
+        function applyPlazaModalFilter() {
+            const checkboxes = document.querySelectorAll('.plaza-item-checkbox');
+            const selected = [];
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selected.push(cb.value);
+                }
+            });
+
+            activeFilters.plazaColC = selected;
+            closePlazaModal();
+            applyFilters();
+        }
+
+        function updateFloatingPlazaButtonText() {
+            const btnText = document.getElementById('floating-plaza-btn-text');
+            if (activeFilters.plazaColC.length === 0) {
+                btnText.textContent = `${plazaColumnName} (Todas)`;
+            } else if (activeFilters.plazaColC.length === 1) {
+                btnText.textContent = `${plazaColumnName}: ${activeFilters.plazaColC[0]}`;
+            } else {
+                btnText.textContent = `${plazaColumnName} (${activeFilters.plazaColC.length} sel.)`;
+            }
+        }
+
+        function toggleTableFullscreen() {
+            const container = document.getElementById('table-card-container');
+            const icon = document.getElementById('fullscreen-icon');
+            const text = document.getElementById('fullscreen-text');
+            const tableWrapper = container.querySelector('.overflow-x-auto');
+
+            if (!container.classList.contains('fixed')) {
+                container.classList.remove('rounded-xl', 'card-shadow');
+                container.classList.add('fixed', 'inset-0', 'z-50', 'rounded-none', 'flex', 'flex-col', 'p-4', 'overflow-hidden');
+                tableWrapper.classList.remove('max-h-[500px]');
+                tableWrapper.classList.add('flex-grow', 'max-h-[calc(100vh-140px)]');
+                icon.className = 'fas fa-compress';
+                text.textContent = 'Contraer';
+                document.body.style.overflow = 'hidden';
+            } else {
+                container.classList.remove('fixed', 'inset-0', 'z-50', 'rounded-none', 'flex', 'flex-col', 'p-4', 'overflow-hidden');
+                container.classList.add('rounded-xl', 'card-shadow');
+                tableWrapper.classList.remove('flex-grow', 'max-h-[calc(100vh-140px)]');
+                tableWrapper.classList.add('max-h-[500px]');
+                icon.className = 'fas fa-expand';
+                text.textContent = 'Expandir';
+                document.body.style.overflow = '';
+            }
+        }
+
+        function toggleCardFullscreen(chartId) {
+            const card = document.getElementById(`card-${chartId}`);
+            const wrapper = document.getElementById(`wrapper-${chartId}`);
+            const icon = document.getElementById(`icon-fullscreen-${chartId}`);
+            const text = document.getElementById(`text-fullscreen-${chartId}`);
+
+            if (!card.classList.contains('fixed')) {
+                card.classList.remove('rounded-xl', 'card-shadow');
+                card.classList.add('fixed', 'inset-0', 'z-50', 'rounded-none', 'flex', 'flex-col', 'p-6', 'overflow-hidden', 'm-0');
+                wrapper.classList.remove('h-64');
+                wrapper.classList.add('flex-grow', 'h-[calc(100vh-120px)]');
+                icon.className = 'fas fa-compress';
+                text.textContent = 'Contraer';
+                document.body.style.overflow = 'hidden';
+            } else {
+                card.classList.remove('fixed', 'inset-0', 'z-50', 'rounded-none', 'flex', 'flex-col', 'p-6', 'overflow-hidden', 'm-0');
+                card.classList.add('rounded-xl', 'card-shadow');
+                wrapper.classList.remove('flex-grow', 'h-[calc(100vh-120px)]');
+                wrapper.classList.add('h-64');
+                icon.className = 'fas fa-expand';
+                text.textContent = 'Expandir';
+                document.body.style.overflow = '';
+            }
+
+            setTimeout(() => {
+                if (chartId === 'chartSemaforo' && chartSemaforoInst) chartSemaforoInst.resize();
+                if (chartId === 'chartGarantia' && chartGarantiaInst) chartGarantiaInst.resize();
+                if (chartId === 'chartPlazas' && chartPlazasInst) chartPlazasInst.resize();
+            }, 50);
+        }
+
+        function toggleSemaphor(semaphor) {
+            const idx = activeFilters.semaphors.indexOf(semaphor);
+            if (idx > -1) {
+                activeFilters.semaphors.splice(idx, 1);
+            } else {
+                activeFilters.semaphors.push(semaphor);
+            }
+            applyFilters();
+        }
+
+        function getFilteredDataExcept(excludeKey) {
+            return globalData.filter(row => {
+                let matchSem = excludeKey === 'semaphors' || activeFilters.semaphors.length === 0 || activeFilters.semaphors.includes(row['Semáforo']);
+                let rowGar = row['Garantía'] || 'No especificada';
+                let matchGar = excludeKey === 'garantias' || activeFilters.garantias.length === 0 || activeFilters.garantias.includes(rowGar);
+                let rowCP = row['C:P'] !== undefined && row['C:P'] !== '' ? String(row['C:P']) : 'N/A';
+                let matchCP = excludeKey === 'cp' || activeFilters.cp.length === 0 || activeFilters.cp.includes(rowCP);
+                let matchPlaza = excludeKey === 'plazaDestino' || !activeFilters.plazaDestino || row['Plaza Destino'] === activeFilters.plazaDestino;
+                
+                let rowPlazaC = row[plazaColumnName] !== undefined && row[plazaColumnName] !== '' ? String(row[plazaColumnName]) : 'N/A';
+                let matchPlazaColC = excludeKey === 'plazaColC' || activeFilters.plazaColC.length === 0 || activeFilters.plazaColC.includes(rowPlazaC);
+
+                let matchMov = excludeKey === 'movimientos' || activeFilters.movimientos.length === 0 || activeFilters.movimientos.includes(row['Movimiento'] || 'N/A');
+                
+                let rowUlt = row['Fecha último movimiento'] !== undefined && row['Fecha último movimiento'] !== '' ? String(row['Fecha último movimiento']) : 'N/A';
+                let matchUlt = excludeKey === 'ultimosMovimientos' || activeFilters.ultimosMovimientos.length === 0 || activeFilters.ultimosMovimientos.includes(rowUlt);
+
+                let searchVal = activeFilters.search.toLowerCase();
+                let matchSearch = excludeKey === 'search' || !searchVal || 
+                    (String(row['Guía'] || '').toLowerCase().includes(searchVal)) ||
+                    (String(row['Nom cliente'] || '').toLowerCase().includes(searchVal)) ||
+                    (String(row['Plaza Destino'] || '').toLowerCase().includes(searchVal)) ||
+                    (String(row[plazaColumnName] || '').toLowerCase().includes(searchVal)) ||
+                    (String(row['Contenido'] || '').toLowerCase().includes(searchVal)) ||
+                    (String(row['Movimiento'] || '').toLowerCase().includes(searchVal)) ||
+                    (String(row['C:P'] || '').toLowerCase().includes(searchVal));
+
+                return matchSem && matchGar && matchCP && matchPlaza && matchPlazaColC && matchMov && matchUlt && matchSearch;
+            });
+        }
+
+        function openModalFilter(column) {
+            currentModalColumn = column;
+            const modal = document.getElementById('filter-modal');
+            let displayColName = column;
+            if (column === 'C:P') displayColName = 'C.P.';
+            if (column === 'Fecha último movimiento') displayColName = 'Último Movimiento';
+
+            document.getElementById('modal-title').textContent = `Filtrar Columna: ${displayColName}`;
+            document.getElementById('modal-search-input').value = '';
+            
+            populateModalCheckboxes();
+            modal.classList.remove('hidden');
+        }
+
+        function closeModalFilter() {
+            document.getElementById('filter-modal').classList.add('hidden');
+            currentModalColumn = null;
+        }
+
+        function populateModalCheckboxes() {
+            const container = document.getElementById('modal-checkboxes-container');
+            container.innerHTML = '';
+            if (!currentModalColumn) return;
+
+            let excludeKey = null;
+            if (currentModalColumn === 'Movimiento') excludeKey = 'movimientos';
+            else if (currentModalColumn === 'Semáforo') excludeKey = 'semaphors';
+            else if (currentModalColumn === 'Garantía') excludeKey = 'garantias';
+            else if (currentModalColumn === 'C:P') excludeKey = 'cp';
+            else if (currentModalColumn === 'Fecha último movimiento') excludeKey = 'ultimosMovimientos';
+
+            const baseData = getFilteredDataExcept(excludeKey);
+            const uniqueValues = [...new Set(baseData.map(r => r[currentModalColumn] !== undefined && r[currentModalColumn] !== '' ? String(r[currentModalColumn]) : 'N/A'))].sort();
+
+            if (uniqueValues.length === 0) {
+                container.innerHTML = '<span class="text-slate-400 text-sm">No hay valores disponibles</span>';
+                return;
+            }
+
+            let currentActiveValues = [];
+            if (currentModalColumn === 'Movimiento') currentActiveValues = activeFilters.movimientos;
+            else if (currentModalColumn === 'Semáforo') currentActiveValues = activeFilters.semaphors;
+            else if (currentModalColumn === 'Garantía') currentActiveValues = activeFilters.garantias;
+            else if (currentModalColumn === 'C:P') currentActiveValues = activeFilters.cp;
+            else if (currentModalColumn === 'Fecha último movimiento') currentActiveValues = activeFilters.ultimosMovimientos;
+
+            let htmlString = '';
+            uniqueValues.forEach(val => {
+                const isChecked = currentActiveValues.includes(val);
+                htmlString += `
+                    <label class="flex items-center gap-2.5 cursor-pointer hover:bg-slate-50 p-1.5 rounded modal-checkbox-label">
+                        <input type="checkbox" value="${val}" ${isChecked ? 'checked' : ''} class="modal-item-checkbox rounded text-estafeta-red focus:ring-estafeta-red w-4 h-4">
+                        <span class="truncate text-slate-700 font-medium">${val}</span>
+                    </label>
+                `;
+            });
+            container.innerHTML = htmlString;
+        }
+
+        let modalSearchTimeout;
+        const modalSearchInput = document.getElementById('modal-search-input');
+        if (modalSearchInput) {
+            modalSearchInput.addEventListener('input', () => {
+                clearTimeout(modalSearchTimeout);
+                modalSearchTimeout = setTimeout(() => {
+                    const searchVal = modalSearchInput.value.toLowerCase();
+                    const labels = document.querySelectorAll('.modal-checkbox-label');
+                    labels.forEach(label => {
+                        const text = label.querySelector('span').textContent.toLowerCase();
+                        label.style.display = text.includes(searchVal) ? 'flex' : 'none';
+                    });
+                }, 250);
+            });
+        }
+
+        function selectAllModalCheckboxes() {
+            document.querySelectorAll('.modal-item-checkbox').forEach(cb => {
+                if (cb.closest('label').style.display !== 'none') cb.checked = true;
+            });
+        }
+
+        function deselectAllModalCheckboxes() {
+            document.querySelectorAll('.modal-item-checkbox').forEach(cb => {
+                if (cb.closest('label').style.display !== 'none') cb.checked = false;
+            });
+        }
+
+        function applyModalFilter() {
+            if (!currentModalColumn) return;
+
+            const checkboxes = document.querySelectorAll('.modal-item-checkbox');
+            const selected = [];
+
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selected.push(cb.value);
+                }
+            });
+
+            if (currentModalColumn === 'Movimiento') activeFilters.movimientos = selected;
+            else if (currentModalColumn === 'Semáforo') activeFilters.semaphors = selected;
+            else if (currentModalColumn === 'Garantía') activeFilters.garantias = selected;
+            else if (currentModalColumn === 'C:P') activeFilters.cp = selected;
+            else if (currentModalColumn === 'Fecha último movimiento') activeFilters.ultimosMovimientos = selected;
+
+            closeModalFilter();
+            applyFilters();
+        }
+
+        function resetFilters() {
+            activeFilters = { semaphors: [], garantias: [], cp: [], plazaDestino: null, plazaColC: [], movimientos: [], ultimosMovimientos: [], search: '', sortColumn: null, sortDirection: 'asc' };
+            currentTablePage = 0;
+            const searchInput = document.getElementById('table-search');
+            if (searchInput) searchInput.value = '';
+            applyFilters();
+        }
+
+        function handleTableSort(column) {
+            if (activeFilters.sortColumn === column) {
+                activeFilters.sortDirection = activeFilters.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                activeFilters.sortColumn = column;
+                activeFilters.sortDirection = 'asc';
+            }
+            applyFilters();
+        }
+
+        function updateSortIcons() {
+            const columns = ['Movimiento', 'Guía', 'Semáforo', 'Garantía', 'C:P', 'Plaza origen', 'Plaza Destino', 'Nom cliente', 'Fecha último movimiento', 'Fecha compromiso de entrega'];
+            columns.forEach(col => {
+                const iconEl = document.getElementById(`sort-icon-${col}`);
+                if (!iconEl) return;
+                if (activeFilters.sortColumn === col) {
+                    iconEl.textContent = activeFilters.sortDirection === 'asc' ? '↑' : '↓';
+                    iconEl.className = 'text-estafeta-red font-bold ml-1';
+                } else {
+                    iconEl.textContent = '↕';
+                    iconEl.className = 'text-slate-400 ml-1';
+                }
+            });
+        }
+
+        function applyFilters() {
+            if (globalData.length === 0) return;
+            filteredData = getFilteredDataExcept(null);
+            currentTablePage = 0; // Reiniciar a la primera página al aplicar filtros o búsqueda
+
+            if (activeFilters.sortColumn) {
+                const col = activeFilters.sortColumn;
+                const dir = activeFilters.sortDirection === 'asc' ? 1 : -1;
+                filteredData.sort((a, b) => {
+                    let valA = a[col] !== undefined && a[col] !== null ? String(a[col]).toLowerCase() : '';
+                    let valB = b[col] !== undefined && b[col] !== null ? String(b[col]).toLowerCase() : '';
+                    return valA.localeCompare(valB, undefined, { numeric: true }) * dir;
+                });
+            }
+
+            updateUI();
+        }
+
+        function updateUI() {
+            updateKPIs();
+            updateFilterBadges();
+            updateCharts();
+            updateSortIcons();
+            updateTable();
+            updateFloatingButton();
+            updateFloatingPlazaButtonText();
+        }
+
+        function updateFloatingButton() {
+            let activeCount = 0;
+            if (activeFilters.semaphors.length > 0) activeCount++;
+            if (activeFilters.garantias.length > 0) activeCount++;
+            if (activeFilters.cp.length > 0) activeCount++;
+            if (activeFilters.plazaDestino) activeCount++;
+            if (activeFilters.plazaColC.length > 0) activeCount++;
+            if (activeFilters.movimientos.length > 0) activeCount++;
+            if (activeFilters.ultimosMovimientos.length > 0) activeCount++;
+            if (activeFilters.search) activeCount++;
+            if (activeFilters.sortColumn) activeCount++;
+
+            const floatBtn = document.getElementById('floating-reset-btn');
+            const floatText = document.getElementById('floating-reset-text');
+
+            if (activeCount > 0) {
+                floatText.textContent = `Limpiar Filtros (${activeCount})`;
+                floatBtn.classList.remove('hidden');
+            } else {
+                floatBtn.classList.add('hidden');
+            }
+        }
+
+        function updateKPIs() {
+            document.getElementById('kpi-total').textContent = filteredData.length;
+            document.getElementById('kpi-vencido').textContent = filteredData.filter(r => r['Semáforo'] === 'Vencido').length;
+            document.getElementById('kpi-hoy').textContent = filteredData.filter(r => r['Semáforo'] === 'Vence hoy').length;
+            document.getElementById('kpi-mañana').textContent = filteredData.filter(r => r['Semáforo'] === 'Vence mañana').length;
+            document.getElementById('kpi-2dias').textContent = filteredData.filter(r => r['Semáforo'] === 'Vence en 2 días').length;
+            document.getElementById('kpi-tiempo').textContent = filteredData.filter(r => r['Semáforo'] === 'En tiempo').length;
+        }
+
+        function updateFilterBadges() {
+            const container = document.getElementById('active-filters-container');
+            const badges = document.getElementById('filter-badges');
+            badges.innerHTML = '';
+
+            let hasActive = activeFilters.semaphors.length > 0 || activeFilters.garantias.length > 0 || activeFilters.cp.length > 0 || activeFilters.plazaDestino || activeFilters.plazaColC.length > 0 || activeFilters.movimientos.length > 0 || activeFilters.ultimosMovimientos.length > 0 || activeFilters.search || activeFilters.sortColumn;
+            if (!hasActive) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+
+            if (activeFilters.semaphors.length > 0) {
+                badges.innerHTML += `<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">Semáforo: ${activeFilters.semaphors.join(', ')} <button onclick="activeFilters.semaphors=[]; applyFilters()"><i class="fas fa-times ml-1"></i></button></span>`;
+            }
+            if (activeFilters.garantias.length > 0) {
+                badges.innerHTML += `<span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">Garantía: ${activeFilters.garantias.join(', ')} <button onclick="activeFilters.garantias=[]; applyFilters()"><i class="fas fa-times ml-1"></i></button></span>`;
+            }
+            if (activeFilters.cp.length > 0) {
+                badges.innerHTML += `<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">C.P.: ${activeFilters.cp.join(', ')} <button onclick="activeFilters.cp=[]; applyFilters()"><i class="fas fa-times ml-1"></i></button></span>`;
+            }
+            if (activeFilters.plazaDestino) {
+                badges.innerHTML += `<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">Destino: ${activeFilters.plazaDestino} <button onclick="activeFilters.plazaDestino=null; applyFilters()"><i class="fas fa-times ml-1"></i></button></span>`;
+            }
+            if (activeFilters.plazaColC.length > 0) {
+                badges.innerHTML += `<span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">${plazaColumnName}: ${activeFilters.plazaColC.join(', ')} <button onclick="activeFilters.plazaColC=[]; applyFilters()"><i class="fas fa-times ml-1"></i></button></span>`;
+            }
+            if (activeFilters.movimientos.length > 0) {
+                badges.innerHTML += `<span class="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">Movimiento: ${activeFilters.movimientos.join(', ')} <button onclick="activeFilters.movimientos=[]; applyFilters()"><i class="fas fa-times ml-1"></i></button></span>`;
+            }
+            if (activeFilters.ultimosMovimientos.length > 0) {
+                badges.innerHTML += `<span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">Último Movimiento: ${activeFilters.ultimosMovimientos.join(', ')} <button onclick="activeFilters.ultimosMovimientos=[]; applyFilters()"><i class="fas fa-times ml-1"></i></button></span>`;
+            }
+            if (activeFilters.search) {
+                badges.innerHTML += `<span class="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">Búsqueda: "${activeFilters.search}" <button onclick="activeFilters.search=''; document.getElementById('table-search').value=''; applyFilters()"><i class="fas fa-times ml-1"></i></button></span>`;
+            }
+            if (activeFilters.sortColumn) {
+                let sortColName = activeFilters.sortColumn;
+                if (sortColName === 'C:P') sortColName = 'C.P.';
+                if (sortColName === 'Fecha último movimiento') sortColName = 'Último Movimiento';
+                let sortText = `${sortColName} (${activeFilters.sortDirection === 'asc' ? 'A-Z' : 'Z-A'})`;
+                badges.innerHTML += `<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1">Orden: ${sortText} <button onclick="activeFilters.sortColumn=null; applyFilters()"><i class="fas fa-times ml-1"></i></button></span>`;
+            }
+        }
+
+        function updateCharts() {
+            const semCounts = {
+                'Vencido': filteredData.filter(r => r['Semáforo'] === 'Vencido').length,
+                'Vence hoy': filteredData.filter(r => r['Semáforo'] === 'Vence hoy').length,
+                'Vence mañana': filteredData.filter(r => r['Semáforo'] === 'Vence mañana').length,
+                'Vence en 2 días': filteredData.filter(r => r['Semáforo'] === 'Vence en 2 días').length,
+                'En tiempo': filteredData.filter(r => r['Semáforo'] === 'En tiempo').length,
+            };
+
+            const ctxSem = document.getElementById('chartSemaforo').getContext('2d');
+            if (chartSemaforoInst) chartSemaforoInst.destroy();
+            chartSemaforoInst = new Chart(ctxSem, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(semCounts),
+                    datasets: [{
+                        label: 'Guías',
+                        data: Object.values(semCounts),
+                        backgroundColor: Object.keys(semCounts).map(k => {
+                            const isSelected = activeFilters.semaphors.length === 0 || activeFilters.semaphors.includes(k);
+                            return isSelected ? semaphorColors[k] : '#CBD5E1';
+                        }),
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { ticks: { font: { size: 10 } } } },
+                    onClick: (e, items) => {
+                        if (items.length) toggleSemaphor(Object.keys(semCounts)[items[0].index]);
+                    }
+                }
+            });
+
+            const garCounts = {};
+            filteredData.forEach(r => {
+                let g = r['Garantía'] || 'No especificada';
+                garCounts[g] = (garCounts[g] || 0) + 1;
+            });
+
+            const ctxGar = document.getElementById('chartGarantia').getContext('2d');
+            if (chartGarantiaInst) chartGarantiaInst.destroy();
+            chartGarantiaInst = new Chart(ctxGar, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(garCounts),
+                    datasets: [{
+                        label: 'Guías',
+                        data: Object.values(garCounts),
+                        backgroundColor: '#DA291C',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                    onClick: (e, items) => {
+                        if (items.length) {
+                            const label = Object.keys(garCounts)[items[0].index];
+                            activeFilters.garantias = (activeFilters.garantias.length === 1 && activeFilters.garantias[0] === label) ? [] : [label];
+                            applyFilters();
+                        }
+                    }
+                }
+            });
+
+            const plazaCounts = {};
+            filteredData.forEach(r => {
+                let p = r['Plaza Destino'] || 'N/A';
+                plazaCounts[p] = (plazaCounts[p] || 0) + 1;
+            });
+            const sortedPlazas = Object.entries(plazaCounts).sort((a,b) => b[1] - a[1]).slice(0, 5);
+
+            const ctxPlaza = document.getElementById('chartPlazas').getContext('2d');
+            if (chartPlazasInst) chartPlazasInst.destroy();
+            chartPlazasInst = new Chart(ctxPlaza, {
+                type: 'bar',
+                data: {
+                    labels: sortedPlazas.map(x => x[0]),
+                    datasets: [{
+                        label: 'Guías',
+                        data: sortedPlazas.map(x => x[1]),
+                        backgroundColor: '#1F2937',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                    onClick: (e, items) => {
+                        if (items.length) {
+                            const label = sortedPlazas[items[0].index][0];
+                            activeFilters.plazaDestino = activeFilters.plazaDestino === label ? null : label;
+                            applyFilters();
+                        }
+                    }
+                }
+            });
+        }
+
+        // Función de control de páginas con bucle (loop)
+        function changeTablePage(targetPage, totalPages) {
+            if (totalPages <= 0) {
+                currentTablePage = 0;
+                return;
+            }
+            if (targetPage < 0) {
+                currentTablePage = totalPages - 1; // Bucle a la última página
+            } else if (targetPage >= totalPages) {
+                currentTablePage = 0; // Bucle a la primera página
+            } else {
+                currentTablePage = targetPage;
+            }
+            updateTable();
+        }
+
+        function updateTable() {
+            const tbody = document.getElementById('data-table-body');
+            const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE) || 1;
+
+            if (currentTablePage >= totalPages) {
+                currentTablePage = totalPages - 1;
+            }
+            if (currentTablePage < 0) {
+                currentTablePage = 0;
+            }
+
+            const startIdx = currentTablePage * ITEMS_PER_PAGE;
+            const endIdx = startIdx + ITEMS_PER_PAGE;
+            const displayData = filteredData.slice(startIdx, endIdx);
+
+            document.getElementById('table-record-counter').textContent = `${filteredData.length} paquetes`;
+
+            if (displayData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="10" class="p-4 text-center text-slate-400">No se encontraron registros con los filtros actuales.</td></tr>`;
+                document.getElementById('table-pagination-info').innerHTML = `
+                    <span>Mostrando 0 de ${filteredData.length} registros</span>
+                    <div class="flex items-center gap-2"></div>
+                `;
+                return;
+            }
+
+            let rowsHtml = '';
+            displayData.forEach(row => {
+                let color = semaphorColors[row['Semáforo']] || '#64748B';
+                let cpVal = row['C:P'] !== undefined && row['C:P'] !== '' ? row['C:P'] : 'N/A';
+                rowsHtml += `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-3 font-semibold text-slate-700">${row['Movimiento'] || 'N/A'}</td>
+                        <td class="p-3 font-mono text-xs font-semibold text-slate-700">${row['Guía'] || 'N/A'}</td>
+                        <td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-semibold text-white" style="background-color: ${color}">${row['Semáforo'] || 'Sin estado'}</span></td>
+                        <td class="p-3">${row['Garantía'] || 'No especificada'}</td>
+                        <td class="p-3 font-mono text-xs text-slate-600">${cpVal}</td>
+                        <td class="p-3 font-semibold text-slate-600">${row['Plaza origen'] || 'N/A'}</td>
+                        <td class="p-3 font-semibold text-slate-600">${row['Plaza Destino'] || 'N/A'}</td>
+                        <td class="p-3 truncate max-w-[150px]">${row['Nom cliente'] || 'N/A'}</td>
+                        <td class="p-3 text-xs text-slate-500">${row['Fecha último movimiento'] || 'N/A'}</td>
+                        <td class="p-3 text-xs text-slate-500">${row['Fecha compromiso de entrega'] || 'N/A'}</td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = rowsHtml;
+
+            // Renderizar controles de paginación en el pie de tabla
+            const paginationInfo = document.getElementById('table-pagination-info');
+            paginationInfo.innerHTML = `
+                <span>Mostrando del ${startIdx + 1} al ${Math.min(endIdx, filteredData.length)} de ${filteredData.length} registros</span>
+                <div class="flex items-center gap-2">
+                    <button onclick="changeTablePage(${currentTablePage - 1}, ${totalPages})" class="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs font-semibold transition flex items-center gap-1 shadow-sm">
+                        <i class="fas fa-chevron-left"></i> Anterior
+                    </button>
+                    <span class="font-bold text-slate-700 px-2">Página ${currentTablePage + 1} de ${totalPages}</span>
+                    <button onclick="changeTablePage(${currentTablePage + 1}, ${totalPages})" class="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded text-xs font-semibold transition flex items-center gap-1 shadow-sm">
+                        Siguiente <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            `;
+        }
+
+        function downloadFilteredExcel() {
+            if (!filteredData || filteredData.length === 0) {
+                alert('No hay datos disponibles para exportar con los filtros actuales.');
+                return;
+            }
+            
+            try {
+                const worksheet = XLSX.utils.json_to_sheet(filteredData);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Detalle de Guías");
+                XLSX.writeFile(workbook, "Detalle_Guias_Filtradas.xlsx");
+            } catch (err) {
+                console.error(err);
+                alert('Ocurrió un error al generar el archivo Excel.');
+            }
+        }
+
+        let tableSearchTimeout;
+        const tableSearchInput = document.getElementById('table-search');
+        if (tableSearchInput) {
+            tableSearchInput.addEventListener('input', (e) => {
+                clearTimeout(tableSearchTimeout);
+                tableSearchTimeout = setTimeout(() => {
+                    activeFilters.search = e.target.value.trim();
+                    applyFilters();
+                }, 300);
+            });
+        }
+
+        const resetFiltersBtn = document.getElementById('reset-filters-btn');
+        if (resetFiltersBtn) {
+            resetFiltersBtn.addEventListener('click', resetFilters);
+        }
+    </script>
+</body>
+</html>

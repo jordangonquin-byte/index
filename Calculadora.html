@@ -1,0 +1,1615 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora Operativa</title>
+    <!-- Librería SheetJS para lectura y exportación de Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --estafeta-red: #DA291C; /* Rojo corporativo actualizado */
+            --estafeta-dark: #212121; /* Fondo oscuro secundario */
+            --estafeta-gray: #F4F6F8; /* Fondo general */
+            --table-header-39: #333333;
+            --table-header-55: #1976D2;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background-color: var(--estafeta-gray);
+            color: #333;
+            position: relative;
+            min-height: 100vh;
+        }
+
+        /* Banner Superior actualizado */
+        .top-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #DA291C; /* Rojo Estafeta solicitado */
+            color: white;
+            padding: 12px 24px;
+            border-bottom: 4px solid #b71c1c;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .banner-title {
+            font-size: 1.15rem;
+            font-weight: bold;
+            margin: 0;
+            letter-spacing: 0.5px;
+        }
+
+        .banner-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        /* Botón de carga */
+        .file-upload-btn {
+            background-color: #212121;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: bold;
+            transition: background-color 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: none;
+        }
+
+        .file-upload-btn:hover {
+            background-color: #333333;
+        }
+
+        #excelFile {
+            display: none;
+        }
+
+        .file-name-display {
+            font-size: 0.85rem;
+            color: #ffcdd2;
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Contenedor principal */
+        .dashboard-container {
+            padding: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding-bottom: 80px;
+        }
+
+        /* Estructura lado a lado para los esquemas */
+        .schemas-wrapper {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+
+        .schema-card {
+            flex: 1;
+            min-width: 450px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            padding: 16px;
+            overflow-x: auto;
+        }
+
+        .schema-title {
+            text-align: center;
+            font-weight: bold;
+            color: white;
+            padding: 8px;
+            margin: -16px -16px 16px -16px;
+            border-radius: 6px 6px 0 0;
+            font-size: 1rem;
+        }
+
+        .title-39 { background-color: var(--table-header-39); }
+        .title-55 { background-color: var(--table-header-55); }
+
+        .sub-table-title {
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin: 12px 0 6px 0;
+            color: #555;
+        }
+
+        /* Estilos de tablas limpios (sin líneas verticales) */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+            background-color: white;
+        }
+
+        th, td {
+            border: none;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 10px 14px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f8fafc;
+            color: #374151;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            white-space: nowrap;
+            border-bottom: 2px solid #d1d5db;
+        }
+
+        th:hover {
+            background-color: #f1f5f9;
+        }
+
+        .th-content {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+        }
+
+        .sort-icon {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
+
+        .filter-icon-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: var(--estafeta-red);
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .filter-icon-btn:hover {
+            background: #ffcdd2;
+        }
+
+        tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+
+        tr:hover {
+            background-color: #f3f4f6;
+        }
+
+        /* Contenedor con altura mínima equivalente a 9 filas */
+        .table-responsive {
+            overflow-x: auto;
+            min-height: 380px; 
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* Controles de Paginación */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 4px;
+            font-size: 0.85rem;
+            color: #555;
+            margin-top: auto;
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        .page-btn {
+            background-color: white;
+            border: 1px solid #d1d5db;
+            color: #333;
+            padding: 5px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: bold;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            background-color: #f3f4f6;
+            border-color: #9ca3af;
+        }
+
+        .page-btn:disabled {
+            background-color: #f9fafb;
+            color: #d1d5db;
+            cursor: not-allowed;
+        }
+
+        .page-info {
+            font-weight: bold;
+            color: #374151;
+            padding: 0 6px;
+        }
+
+        /* Tarjetas compactas para promedios y cálculo de bono en vivo */
+        .summary-kpi-container {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .kpi-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-left: 5px solid var(--estafeta-red);
+            border-radius: 8px;
+            padding: 16px 20px;
+            min-width: 220px;
+            flex: 1;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+            border-color: #cbd5e1;
+        }
+
+        .kpi-card.highlight {
+            border-left-color: #2e7d32;
+            background: linear-gradient(to bottom right, #ffffff, #f4fbf4);
+        }
+
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+        }
+
+        .kpi-title {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .kpi-icon {
+            font-size: 1.25rem;
+            line-height: 1;
+            background: #f1f5f9;
+            padding: 8px;
+            border-radius: 6px;
+        }
+
+        .kpi-card.highlight .kpi-icon {
+            background: #e8f5e9;
+        }
+
+        .kpi-value {
+            font-size: 1.35rem;
+            font-weight: 800;
+            color: var(--estafeta-dark);
+        }
+
+        .kpi-subtext {
+            font-size: 0.75rem;
+            color: #475569;
+            margin-top: 6px;
+            font-weight: 500;
+        }
+
+        /* Sección de Tabla Dinámica y Filtros */
+        .dynamic-section {
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .section-header-flex {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--estafeta-red);
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+        }
+
+        .section-header-flex h2 {
+            margin: 0;
+            font-size: 1.15rem;
+            color: var(--estafeta-dark);
+            border: none;
+            padding: 0;
+        }
+
+        .download-excel-btn {
+            background-color: #2e7d32;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background-color 0.2s ease;
+        }
+
+        .download-excel-btn:hover {
+            background-color: #1b5e20;
+        }
+
+        .filters-bar {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            background: var(--estafeta-gray);
+            padding: 12px 16px;
+            border-radius: 4px;
+            flex-wrap: wrap;
+            align-items: flex-start;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            position: relative;
+            min-width: 320px;
+        }
+
+        .filter-group label {
+            font-size: 0.8rem;
+            font-weight: bold;
+            color: #555;
+        }
+
+        .searchable-dropdown {
+            position: relative;
+            width: 100%;
+        }
+
+        .searchable-input {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            background-color: white;
+            box-sizing: border-box;
+        }
+
+        .searchable-list {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            margin-top: 2px;
+        }
+
+        .searchable-item {
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        .searchable-item:hover {
+            background-color: #f1f3f5;
+            color: var(--estafeta-red);
+            font-weight: bold;
+        }
+
+        .operator-filter-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .operator-badge {
+            font-size: 0.9rem;
+            font-weight: bold;
+            color: var(--estafeta-red);
+            background: #ffebee;
+            border: 1px solid #ffcdd2;
+            padding: 6px 12px;
+            border-radius: 4px;
+            display: none;
+            white-space: nowrap;
+        }
+
+        .floating-action-btn {
+            position: fixed;
+            bottom: 25px;
+            right: 25px;
+            background-color: var(--estafeta-red);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            padding: 12px 20px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.2s ease, transform 0.2s ease;
+        }
+
+        .floating-action-btn:hover {
+            background-color: #b71c1c;
+            transform: translateY(-2px);
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-card {
+            background: white;
+            width: 480px;
+            border-radius: 10px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: modalFadeIn 0.2s ease;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-header {
+            background-color: #1a2238;
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1rem;
+            font-weight: bold;
+        }
+
+        .modal-header .close-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-search-box {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .modal-search-box input {
+            width: 100%;
+            padding: 8px 12px 8px 36px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+        }
+
+        .modal-search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #888;
+        }
+
+        .modal-select-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            margin-bottom: 12px;
+            color: #555;
+        }
+
+        .modal-select-actions span span {
+            color: var(--estafeta-red);
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .modal-select-actions span span:hover {
+            text-decoration: underline;
+        }
+
+        .modal-checkbox-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .modal-checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .modal-checkbox-item:hover {
+            background-color: #f1f3f5;
+        }
+
+        .modal-footer {
+            padding: 16px 20px;
+            background-color: #f8f9fa;
+            border-top: 1px solid #eee;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .modal-btn {
+            padding: 8px 18px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+        }
+
+        .modal-btn-cancel {
+            background-color: #e2e8f0;
+            color: #333;
+        }
+
+        .modal-btn-cancel:hover {
+            background-color: #cbd5e1;
+        }
+
+        .modal-btn-apply {
+            background-color: var(--estafeta-red);
+            color: white;
+        }
+
+        .modal-btn-apply:hover {
+            background-color: #b71c1c;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Banner Superior con el color actualizado -->
+    <header class="top-banner">
+        <h1 class="banner-title">Calculadora Operativa</h1>
+        
+        <div class="banner-controls">
+            <span id="fileName" class="file-name-display">Ningún archivo seleccionado</span>
+            
+            <label for="excelFile" class="file-upload-btn">
+                📂 Cargar Excel
+            </label>
+            <input type="file" id="excelFile" accept=".xlsx, .xls">
+        </div>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="dashboard-container">
+        
+        <!-- Tablas de Esquemas Lado a Lado -->
+        <div class="schemas-wrapper">
+            
+            <!-- Esquema 39 -->
+            <div class="schema-card">
+                <div class="schema-title title-39">Esquema 39</div>
+                
+                <div class="sub-table-title">Productividad</div>
+                <table class="table-39">
+                    <thead>
+                        <tr><th>Productividad</th><th>% Bono</th><th>Monto</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>≥ 120</td><td>100%</td><td>$3,000</td></tr>
+                        <tr><td>110-119</td><td>80%</td><td>$2,400</td></tr>
+                        <tr><td>100-109</td><td>70%</td><td>$2,100</td></tr>
+                        <tr><td>90-99</td><td>50%</td><td>$1,500</td></tr>
+                        <tr><td>80-89</td><td>40%</td><td>$1,200</td></tr>
+                        <tr><td>< 80</td><td>0%</td><td>$0</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="sub-table-title">Eficiencia</div>
+                <table class="table-39">
+                    <thead>
+                        <tr><th>Eficiencia</th><th>% Bono</th><th>Monto</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>≥ 98.5%</td><td>100%</td><td>$2,000</td></tr>
+                        <tr><td>98.0%-98.4%</td><td>50%</td><td>$1,000</td></tr>
+                        <tr><td>< 98.0%</td><td>0%</td><td>$0</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Esquema 55 - 61 -->
+            <div class="schema-card">
+                <div class="schema-title title-55">Esquema 55 - 61</div>
+                
+                <div class="sub-table-title">Productividad</div>
+                <table class="table-55">
+                    <thead>
+                        <tr><th>Productividad</th><th>% Bono</th><th>Pago</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>≥ 120</td><td>100%</td><td>$750.00</td></tr>
+                        <tr><td>110 - 119</td><td>80%</td><td>$600.00</td></tr>
+                        <tr><td>100 - 109</td><td>70%</td><td>$525.00</td></tr>
+                        <tr><td>90 - 99</td><td>50%</td><td>$375.00</td></tr>
+                        <tr><td>80 - 89</td><td>40%</td><td>$300.00</td></tr>
+                        <tr><td>< 80</td><td>0%</td><td>$0.00</td></tr>
+                    </tbody>
+                </table>
+
+                <div class="sub-table-title">Eficiencia</div>
+                <table class="table-55">
+                    <thead>
+                        <tr><th>Eficiencia</th><th>% Bono</th><th>Pago</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>100% a 98.5%</td><td>100%</td><td>$750.00</td></tr>
+                        <tr><td>98.4% a 98.0%</td><td>50%</td><td>$375.00</td></tr>
+                        <tr><td>Menor de 98%</td><td>0%</td><td>$0.00</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+
+        <!-- 1ª Sección: Bono por Operador -->
+        <div class="dynamic-section">
+            <h2>Bono por Operador</h2>
+
+            <!-- Tarjetas KPI de Promedios y Cálculo de Bono en Vivo -->
+            <div class="summary-kpi-container" id="kpiContainer2" style="display: none;">
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-title">Promedio Productividad</div>
+                        <div class="kpi-icon">📊</div>
+                    </div>
+                    <div class="kpi-value" id="kpiProd2">--</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <div class="kpi-title">Promedio Eficiencia TR2</div>
+                        <div class="kpi-icon">⚡</div>
+                    </div>
+                    <div class="kpi-value" id="kpiEfi2">--</div>
+                </div>
+                <div class="kpi-card highlight" id="cardBono39" style="display: none;">
+                    <div class="kpi-header">
+                        <div class="kpi-title">Bono Estimado (Esquema 39)</div>
+                        <div class="kpi-icon">💰</div>
+                    </div>
+                    <div>
+                        <div class="kpi-value" id="kpiBono39">$0.00</div>
+                        <div class="kpi-subtext" id="kpiSub39">Prod: 0% | Efi: 0%</div>
+                    </div>
+                </div>
+                <div class="kpi-card highlight" id="cardBono55" style="display: none;">
+                    <div class="kpi-header">
+                        <div class="kpi-title">Bono Estimado (Esquema 55)</div>
+                        <div class="kpi-icon">💵</div>
+                    </div>
+                    <div>
+                        <div class="kpi-value" id="kpiBono55">$0.00</div>
+                        <div class="kpi-subtext" id="kpiSub55">Prod: 0% | Efi: 0%</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Barra de Filtros con Buscador Avanzado Interactivo -->
+            <div class="filters-bar" id="filtersBar2" style="display: none;">
+                <div class="filter-group" style="min-width: 400px;">
+                    <label for="operatorSearchInput">Número de Empleado (Buscador Avanzado):</label>
+                    <div class="operator-filter-wrapper">
+                        <div class="searchable-dropdown" style="flex: 1; min-width: 240px;">
+                            <input type="text" id="operatorSearchInput" class="searchable-input" placeholder="🔍 Escribe número o nombre de operador..." oninput="onOperatorSearchInput()" onfocus="showOperatorList()" autocomplete="off">
+                            <div id="operatorSearchList" class="searchable-list"></div>
+                            <input type="hidden" id="selectedOperatorValue" value="">
+                        </div>
+                        <span id="operatorBadge2" class="operator-badge"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive" id="dynamicTableContainer2">
+                <p style="color: #666; font-style: italic; text-align: center; padding: 20px;">
+                    Cargue un archivo Excel usando el botón superior para visualizar la tabla y los filtros.
+                </p>
+            </div>
+        </div>
+
+        <!-- Nueva Sección: Concentrado Bono -->
+        <div class="dynamic-section">
+            <div class="section-header-flex">
+                <h2>Concentrado Bono</h2>
+                <button id="downloadConcentradoBtn" class="download-excel-btn" onclick="downloadConcentradoExcel()" style="display: none;">
+                    📥 Descargar Concentrado en Excel
+                </button>
+            </div>
+            <div class="table-responsive" id="concentradoTableContainer">
+                <p style="color: #666; font-style: italic; text-align: center; padding: 20px;">
+                    Cargue un archivo Excel para generar el concentrado de bonos de todos los operadores.
+                </p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Botón Flotante Inferior Derecho -->
+    <button id="floatingFilterBtn" class="floating-action-btn" onclick="clearOperatorFilter()">
+        ✕ Quitar Filtro Operador
+    </button>
+
+    <!-- Modal Popup Estilo Imagen para Filtrar Área de Personal -->
+    <div id="areaFilterModal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span>🔴 Filtrar Columna: Área de Personal</span>
+                <button class="close-btn" onclick="closeAreaModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-search-box">
+                    <span class="modal-search-icon">🔍</span>
+                    <input type="text" id="areaSearchInput" placeholder="Buscar valor..." onkeyup="filterAreaCheckboxList()">
+                </div>
+                <div class="modal-select-actions">
+                    <span>Seleccionar valores:</span>
+                    <span><span onclick="toggleAllAreas(true)">Todos</span> | <span onclick="toggleAllAreas(false)">Ninguno</span></span>
+                </div>
+                <div class="modal-checkbox-list" id="modalAreaCheckboxList"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-cancel" onclick="closeAreaModal()">Cancelar</button>
+                <button class="modal-btn modal-btn-apply" onclick="applyAreaFilterModal()">Aplicar Filtro</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Verificación de Autenticación, Ofuscación de Rol, Expiración por Inactividad y Seguridad por Rol
+        window.addEventListener('DOMContentLoaded', () => {
+            // 1. Consultar el rol activo codificado guardado en el navegador
+            const encodedRole = localStorage.getItem('auth_role');
+            
+            if (!encodedRole) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            let rol = '';
+            try {
+                // Decodificamos el Base64 para evitar modificaciones simples desde la consola
+                const decoded = atob(encodedRole);
+                const parts = decoded.split('|');
+                if (parts.length >= 1) {
+                    rol = parts[0];
+                }
+            } catch (e) {
+                // Si el valor fue alterado y no es un Base64 válido, redirigir al login
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            if (!rol) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            // 2. Control de Inactividad (Cierre automático de sesión a los 30 minutos)
+            let inactivityTimer;
+            const maxInactivityMinutes = 30;
+
+            function resetInactivityTimer() {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(() => {
+                    alert("Su sesión ha expirado por inactividad.");
+                    localStorage.removeItem('auth_role');
+                    window.location.href = 'Panel de Control Operativo.html';
+                }, maxInactivityMinutes * 60 * 1000);
+            }
+
+            // Registrar eventos del usuario para reiniciar el contador de inactividad
+            ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
+                window.addEventListener(event, resetInactivityTimer);
+            });
+            resetInactivityTimer();
+
+            // 3. Aplicar restricciones de seguridad si NO es administrador
+            if (rol !== 'admin') {
+                console.log("Aplicando medidas de seguridad en este módulo.");
+                
+                // Bloquear Clic Secundario
+                document.addEventListener('contextmenu', e => e.preventDefault());
+
+                // Bloquear Selección de Texto
+                document.addEventListener('selectstart', e => e.preventDefault());
+
+                // Bloquear Copiar
+                document.addEventListener('copy', e => e.preventDefault());
+            } else {
+                console.warn("Modo Administrador: Módulo libre sin restricciones.");
+            }
+        });
+
+        let globalRawData = [];
+        let activeHeaders2 = [];
+        let currentFilteredData = [];
+        let activeAreaFilters = null;
+        let currentSortColumn = null;
+        let currentSortAsc = true;
+        let currentPage = 1;
+        const rowsPerPage = 10;
+        let availableOperatorsList = [];
+        let lastConcentradoRows = []; // Almacena filas procesadas para exportación
+
+        function validarArchivo(encabezados) {
+            if (!encabezados || encabezados.length === 0) return false;
+            const normalizados = encabezados.map(h => String(h).trim().toLowerCase());
+            return normalizados.includes("Dueño Ruta".toLowerCase()) && 
+                   normalizados.includes("Clasificación Rutas TR2".toLowerCase()) && 
+                   normalizados.includes("Pickup Size".toLowerCase());
+        }
+
+        document.getElementById('excelFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const fileNameDisplay = document.getElementById('fileName');
+            
+            if (file) {
+                fileNameDisplay.textContent = file.name;
+                
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    const jsonRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+                    if (jsonRows.length > 0) {
+                        const headers = jsonRows[0];
+                        if (!validarArchivo(headers)) {
+                            alert('El archivo cargado no contiene la estructura o encabezados requeridos ("Dueño Ruta", "Clasificación Rutas TR2", "Pickup Size").');
+                            document.getElementById('excelFile').value = '';
+                            fileNameDisplay.textContent = 'Ningún archivo seleccionado';
+                            document.getElementById('dynamicTableContainer2').innerHTML = '<p style="color: red; text-align: center;">El archivo no cuenta con los encabezados válidos ("Dueño Ruta", "Clasificación Rutas TR2", "Pickup Size").</p>';
+                            document.getElementById('concentradoTableContainer').innerHTML = '<p style="color: #666; font-style: italic; text-align: center; padding: 20px;">Cargue un archivo Excel válido para generar el concentrado.</p>';
+                            document.getElementById('filtersBar2').style.display = 'none';
+                            document.getElementById('kpiContainer2').style.display = 'none';
+                            document.getElementById('floatingFilterBtn').style.display = 'none';
+                            document.getElementById('downloadConcentradoBtn').style.display = 'none';
+                            return;
+                        }
+                    }
+
+                    globalRawData = XLSX.utils.sheet_to_json(worksheet);
+                    
+                    if (globalRawData.length > 0) {
+                        currentFilteredData = [...globalRawData];
+                        activeAreaFilters = null;
+                        currentPage = 1;
+                        setupInitialFiltersAndTable(globalRawData, 2);
+                        renderConcentradoTable(globalRawData);
+                    } else {
+                        document.getElementById('dynamicTableContainer2').innerHTML = '<p style="color: red; text-align: center;">El archivo Excel no contiene datos legibles.</p>';
+                        document.getElementById('concentradoTableContainer').innerHTML = '<p style="color: red; text-align: center;">El archivo Excel no contiene datos legibles.</p>';
+                        document.getElementById('filtersBar2').style.display = 'none';
+                        document.getElementById('kpiContainer2').style.display = 'none';
+                        document.getElementById('floatingFilterBtn').style.display = 'none';
+                        document.getElementById('downloadConcentradoBtn').style.display = 'none';
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                fileNameDisplay.textContent = 'Ningún archivo seleccionado';
+                document.getElementById('filtersBar2').style.display = 'none';
+                document.getElementById('kpiContainer2').style.display = 'none';
+                document.getElementById('floatingFilterBtn').style.display = 'none';
+                document.getElementById('downloadConcentradoBtn').style.display = 'none';
+                document.getElementById('concentradoTableContainer').innerHTML = '<p style="color: #666; font-style: italic; text-align: center; padding: 20px;">Cargue un archivo Excel para generar el concentrado de bonos de todos los operadores.</p>';
+            }
+        });
+
+        window.addEventListener('click', function(e) {
+            if (!e.target.closest('.searchable-dropdown')) {
+                const list = document.getElementById('operatorSearchList');
+                if (list) list.style.display = 'none';
+            }
+        });
+
+        function setupInitialFiltersAndTable(data, suffix) {
+            const excludedColumns2 = [
+                "Fecha Evento", "Fecha_Evento", "Operator", "Operador", "Nombre Operador", "Nombre_Operador", "Numero de Empleado", "Numero_de_Empleado",
+                "Dueño Ruta", "Dueno Ruta", "Dueno_Ruta", "Dueño_Ruta",
+                "Drop Size", "Pickup Size", "Visitas Recolección", "Visitas Excepción", 
+                "Visitas Entrega", "Rutas Externas", "Rutas Propias", "Productividad Propio", 
+                "Desahogos Ruta a COP", "Pendientes", "Excepciones", "Entregado", "Recolección",
+                "Inicio Ruta", "Fin Ruta", "Tiempo operado", "Clasificación Rutas TR2", 
+                "% Rojo", "% Amarillo", "% Azul", "% Morado", "% Verde", "% Gris", 
+                "Rojo Devoluciones", "Amarillo Devoluciones", "Azul Devoluciones", 
+                "Morado Devoluciones", "Verde Devoluciones", "Gris Devoluciones",
+                "Excedentes", "Excedente", "Faltantes", "Faltante", 
+                "Entregas a oficina", "Entrega a oficina", "Entregas a Oficina",
+                "A Entrega", "a entrega", "A_Entrega"
+            ];
+
+            const allHeaders = Object.keys(data[0]);
+            
+            let rawHeaders2 = allHeaders.filter(h => {
+                const cleanHeader = h.trim();
+                return !excludedColumns2.some(exc => exc.toLowerCase() === cleanHeader.toLowerCase());
+            });
+
+            activeHeaders2 = [];
+            let areaHeader = rawHeaders2.find(h => {
+                const lower = h.trim().toLowerCase();
+                return lower === "área de personal" || lower === "area de personal" || lower === "area_de_personal" || lower === "área_de_personal";
+            });
+
+            rawHeaders2.forEach(h => {
+                const lower = h.trim().toLowerCase();
+                const isArea = (lower === "área de personal" || lower === "area de personal" || lower === "area_de_personal" || lower === "área_de_personal");
+                if (!isArea) {
+                    activeHeaders2.push(h);
+                    if (lower.includes("productividad") && areaHeader && !activeHeaders2.includes(areaHeader)) {
+                        activeHeaders2.push(areaHeader);
+                    }
+                }
+            });
+
+            if (areaHeader && !activeHeaders2.includes(areaHeader)) {
+                activeHeaders2.push(areaHeader);
+            }
+
+            const { operatorKey, nameKey } = getKeys(data);
+            availableOperatorsList = [];
+            if (operatorKey) {
+                const opMap = new Map();
+                data.forEach(row => {
+                    let opId = row[operatorKey];
+                    if (opId !== undefined && opId !== null && String(opId).trim() !== "") {
+                        let opName = nameKey && row[nameKey] ? row[nameKey] : "";
+                        opMap.set(String(opId), opName);
+                    }
+                });
+                opMap.forEach((name, id) => {
+                    availableOperatorsList.push({ id: id, name: name });
+                });
+                availableOperatorsList.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+            }
+
+            document.getElementById('operatorSearchInput').value = '';
+            document.getElementById('selectedOperatorValue').value = '';
+            document.getElementById('operatorBadge2').style.display = 'none';
+            document.getElementById('floatingFilterBtn').style.display = 'none';
+
+            document.getElementById('filtersBar2').style.display = 'flex';
+            document.getElementById('kpiContainer2').style.display = 'flex';
+            
+            applyCurrentFiltersAndRender(suffix);
+        }
+
+        function getKeys(data) {
+            if (!data || data.length === 0) return {};
+            const allHeaders = Object.keys(data[0]);
+            
+            const areaKey = allHeaders.find(h => {
+                const lower = h.trim().toLowerCase();
+                return lower === "área de personal" || lower === "area de personal" || lower === "area_de_personal" || lower === "área_de_personal";
+            });
+
+            const operatorKey = allHeaders.find(h => {
+                const lower = h.trim().toLowerCase();
+                return lower === "nombre operador" || lower === "nombre_operador" || lower === "operador" || lower === "operator" || lower.includes("empleado");
+            });
+
+            const nameKey = allHeaders.find(h => {
+                const lower = h.trim().toLowerCase();
+                return lower.includes("nombre") || (lower.includes("operador") && !lower.includes("empleado"));
+            });
+
+            return { areaKey, operatorKey, nameKey, allHeaders };
+        }
+
+        function showOperatorList() {
+            renderOperatorDropdownItems(availableOperatorsList);
+        }
+
+        function onOperatorSearchInput() {
+            let query = document.getElementById('operatorSearchInput').value.toLowerCase().trim();
+            if (query === "") {
+                clearOperatorFilter();
+                return;
+            }
+
+            let filteredOps = availableOperatorsList.filter(op => {
+                let matchId = op.id.toLowerCase().includes(query);
+                let matchName = op.name.toLowerCase().includes(query);
+                return matchId || matchName;
+            });
+
+            renderOperatorDropdownItems(filteredOps);
+        }
+
+        function renderOperatorDropdownItems(items) {
+            const listContainer = document.getElementById('operatorSearchList');
+            listContainer.innerHTML = '';
+            
+            if (items.length === 0) {
+                listContainer.innerHTML = '<div class="searchable-item" style="color: #888; cursor: default;">No se encontraron operadores</div>';
+            } else {
+                items.forEach(op => {
+                    let displayLabel = op.name ? `${op.id} - ${op.name}` : op.id;
+                    let div = document.createElement('div');
+                    div.className = 'searchable-item';
+                    div.textContent = displayLabel;
+                    div.onclick = function() {
+                        selectOperator(op.id, displayLabel);
+                    };
+                    listContainer.appendChild(div);
+                });
+            }
+            listContainer.style.display = 'block';
+        }
+
+        function selectOperator(opId, labelText) {
+            document.getElementById('operatorSearchInput').value = labelText;
+            document.getElementById('selectedOperatorValue').value = opId;
+            document.getElementById('operatorSearchList').style.display = 'none';
+
+            currentPage = 1;
+            applyCurrentFiltersAndRender(2);
+
+            const badge = document.getElementById('operatorBadge2');
+            badge.textContent = `Empleado: ${labelText}`;
+            badge.style.display = 'inline-block';
+            document.getElementById('floatingFilterBtn').style.display = 'flex';
+        }
+
+        function clearOperatorFilter() {
+            document.getElementById('operatorSearchInput').value = '';
+            document.getElementById('selectedOperatorValue').value = '';
+            document.getElementById('operatorSearchList').style.display = 'none';
+            document.getElementById('operatorBadge2').style.display = 'none';
+            document.getElementById('floatingFilterBtn').style.display = 'none';
+
+            currentPage = 1;
+            applyCurrentFiltersAndRender(2);
+        }
+
+        function applyCurrentFiltersAndRender(suffix) {
+            const selectedOperator = document.getElementById('selectedOperatorValue').value;
+            const { operatorKey, areaKey } = getKeys(globalRawData);
+
+            let filtered = [...globalRawData];
+
+            if (selectedOperator !== "" && operatorKey) {
+                filtered = filtered.filter(row => String(row[operatorKey]) === String(selectedOperator));
+            }
+
+            if (activeAreaFilters !== null && areaKey) {
+                filtered = filtered.filter(row => {
+                    let val = row[areaKey] !== undefined ? String(row[areaKey]) : "";
+                    return activeAreaFilters.includes(val);
+                });
+            }
+
+            if (currentSortColumn !== null) {
+                filtered.sort((a, b) => {
+                    let valA = a[currentSortColumn] !== undefined ? a[currentSortColumn] : "";
+                    let valB = b[currentSortColumn] !== undefined ? b[currentSortColumn] : "";
+
+                    if (!isNaN(valA) && !isNaN(valB) && valA !== "" && valB !== "") {
+                        return currentSortAsc ? Number(valA) - Number(valB) : Number(valB) - Number(valA);
+                    }
+                    return currentSortAsc ? String(valA).localeCompare(String(valB), undefined, { numeric: true, sensitivity: 'base' }) : String(valB).localeCompare(String(valA), undefined, { numeric: true, sensitivity: 'base' });
+                });
+            }
+
+            currentFilteredData = filtered;
+            renderTableForSection(currentFilteredData, suffix);
+        }
+
+        function sortTable(headerName) {
+            if (currentSortColumn === headerName) {
+                currentSortAsc = !currentSortAsc;
+            } else {
+                currentSortColumn = headerName;
+                currentSortAsc = true;
+            }
+            currentPage = 1;
+            applyCurrentFiltersAndRender(2);
+        }
+
+        function changePage(direction) {
+            currentPage += direction;
+            renderTableForSection(currentFilteredData, 2);
+        }
+
+        function openAreaModal() {
+            const { areaKey } = getKeys(globalRawData);
+            if (!areaKey) return;
+
+            const uniqueAreas = [...new Set(globalRawData.map(row => row[areaKey] !== undefined ? String(row[areaKey]) : ""))].filter(v => v !== "");
+            uniqueAreas.sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
+            const listContainer = document.getElementById('modalAreaCheckboxList');
+            listContainer.innerHTML = "";
+
+            uniqueAreas.forEach(area => {
+                let isChecked = (activeAreaFilters === null) || activeAreaFilters.includes(area);
+                listContainer.innerHTML += `
+                    <label class="modal-checkbox-item">
+                        <input type="checkbox" value="${area}" ${isChecked ? 'checked' : ''}> ${area}
+                    </label>
+                `;
+            });
+
+            document.getElementById('areaSearchInput').value = "";
+            document.getElementById('areaFilterModal').style.display = 'flex';
+        }
+
+        function closeAreaModal() {
+            document.getElementById('areaFilterModal').style.display = 'none';
+        }
+
+        function toggleAllAreas(state) {
+            const checkboxes = document.querySelectorAll('#modalAreaCheckboxList input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                if (cb.closest('.modal-checkbox-item').style.display !== 'none') {
+                    cb.checked = state;
+                }
+            });
+        }
+
+        function filterAreaCheckboxList() {
+            let query = document.getElementById('areaSearchInput').value.toLowerCase();
+            let items = document.querySelectorAll('#modalAreaCheckboxList .modal-checkbox-item');
+            items.forEach(item => {
+                let text = item.textContent.toLowerCase();
+                item.style.display = text.includes(query) ? 'flex' : 'none';
+            });
+        }
+
+        function applyAreaFilterModal() {
+            const checkboxes = document.querySelectorAll('#modalAreaCheckboxList input[type="checkbox"]');
+            let selected = [];
+            let total = checkboxes.length;
+            let checkedCount = 0;
+
+            checkboxes.forEach(cb => {
+                if (cb.checked) {
+                    selected.push(cb.value);
+                    checkedCount++;
+                }
+            });
+
+            if (checkedCount === total) {
+                activeAreaFilters = null;
+            } else {
+                activeAreaFilters = selected;
+            }
+
+            closeAreaModal();
+            currentPage = 1;
+            applyCurrentFiltersAndRender(2);
+        }
+
+        function getBonoEsquema39(prod, efi) {
+            let bonoProd = 0;
+            if (prod >= 120) bonoProd = 3000;
+            else if (prod >= 110) bonoProd = 2400;
+            else if (prod >= 100) bonoProd = 2100;
+            else if (prod >= 90) bonoProd = 1500;
+            else if (prod >= 80) bonoProd = 1200;
+
+            let bonoEfi = 0;
+            if (efi >= 98.5) bonoEfi = 2000;
+            else if (efi >= 98.0) bonoEfi = 1000;
+
+            return { total: bonoProd + bonoEfi, pProd: bonoProd, pEfi: bonoEfi };
+        }
+
+        function getBonoEsquema55(prod, efi) {
+            let bonoProd = 0;
+            if (prod >= 120) bonoProd = 750;
+            else if (prod >= 110) bonoProd = 600;
+            else if (prod >= 100) bonoProd = 525;
+            else if (prod >= 90) bonoProd = 375;
+            else if (prod >= 80) bonoProd = 300;
+
+            let bonoEfi = 0;
+            if (efi >= 98.5) bonoEfi = 750;
+            else if (efi >= 98.0) bonoEfi = 375;
+
+            return { total: bonoProd + bonoEfi, pProd: bonoProd, pEfi: bonoEfi };
+        }
+
+        function renderTableForSection(data, suffix) {
+            const container = document.getElementById('dynamicTableContainer' + suffix);
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p style="color: #666; font-style: italic; text-align: center; padding: 40px;">No hay registros que coincidan con los filtros seleccionados.</p>';
+                document.getElementById('kpiProd2').textContent = '0.00';
+                document.getElementById('kpiEfi2').textContent = '0.00%';
+                document.getElementById('cardBono39').style.display = 'none';
+                document.getElementById('cardBono55').style.display = 'none';
+                return;
+            }
+
+            const headers = activeHeaders2;
+            const { areaKey } = getKeys(globalRawData);
+
+            const totalPages = Math.ceil(data.length / rowsPerPage) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            const startIndex = (currentPage - 1) * rowsPerPage;
+            const endIndex = startIndex + rowsPerPage;
+            const paginatedData = data.slice(startIndex, endIndex);
+
+            let html = '<div style="flex: 1;"><table><thead><tr>';
+            headers.forEach(h => {
+                let sortIconSymbol = '↕';
+                if (currentSortColumn === h) {
+                    sortIconSymbol = currentSortAsc ? '▲' : '▼';
+                }
+
+                const lowerH = h.toLowerCase();
+                const isAreaCol = areaKey && (lowerH === areaKey.toLowerCase() || lowerH.includes("área") || lowerH.includes("area"));
+
+                html += `<th>`;
+                html += `<div class="th-content">`;
+                html += `<span onclick="sortTable('${h}')" style="cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">${h} <span class="sort-icon">${sortIconSymbol}</span></span>`;
+                
+                if (isAreaCol) {
+                    html += `<button class="filter-icon-btn" onclick="openAreaModal()" title="Filtrar Área de Personal">🔻</button>`;
+                }
+
+                html += `</div>`;
+                html += `</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            paginatedData.forEach(row => {
+                html += '<tr>';
+                headers.forEach(h => {
+                    let val = row[h] !== undefined ? row[h] : '';
+                    
+                    const lowerH = h.toLowerCase();
+                    if ((lowerH.includes("eficiencia") || lowerH.includes("tr2")) && !isNaN(val) && val !== '') {
+                        let num = Number(val);
+                        if (num <= 1 && num > 0) {
+                            num = num * 100;
+                        }
+                        val = num.toFixed(2) + '%';
+                    }
+
+                    html += `<td>${val}</td>`;
+                });
+                html += '</tr>';
+            });
+
+            const rowsToPad = rowsPerPage - paginatedData.length;
+            if (paginatedData.length < rowsPerPage && currentPage === 1) {
+                for (let i = 0; i < rowsToPad && data.length < rowsPerPage; i++) {
+                    html += '<tr style="visibility: hidden;">';
+                    headers.forEach(() => { html += '<td>&nbsp;</td>'; });
+                    html += '</tr>';
+                }
+            }
+
+            html += '</tbody></table></div>';
+
+            if (data.length > rowsPerPage) {
+                html += `
+                    <div class="pagination-container">
+                        <span>Mostrando registros ${startIndex + 1} a ${Math.min(endIndex, data.length)} de ${data.length}</span>
+                        <div class="pagination-buttons">
+                            <button class="page-btn" onclick="changePage(-1)" ${currentPage === 1 ? 'disabled' : ''}>Anterior</button>
+                            <span class="page-info">Página ${currentPage} de ${totalPages}</span>
+                            <button class="page-btn" onclick="changePage(1)" ${currentPage === totalPages ? 'disabled' : ''}>Siguiente</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+
+            let sumProd = 0, countProd = 0;
+            let sumEfi = 0, countEfi = 0;
+            const areasPresentes = new Set();
+
+            headers.forEach(h => {
+                const lowerH = h.toLowerCase();
+                if (lowerH.includes("productividad")) {
+                    data.forEach(row => {
+                        let v = row[h];
+                        if (v !== undefined && v !== '' && !isNaN(v)) {
+                            sumProd += Number(v);
+                            countProd++;
+                        }
+                    });
+                } else if (lowerH.includes("eficiencia") || lowerH.includes("tr2")) {
+                    data.forEach(row => {
+                        let v = row[h];
+                        if (v !== undefined && v !== '' && !isNaN(v)) {
+                            let num = Number(v);
+                            if (num <= 1 && num > 0) num = num * 100;
+                            sumEfi += num;
+                            countEfi++;
+                        }
+                    });
+                } else if (areaKey && lowerH === areaKey.toLowerCase()) {
+                    data.forEach(row => {
+                        if (row[h] !== undefined) areasPresentes.add(String(row[h]).trim().toLowerCase());
+                    });
+                }
+            });
+
+            let avgProd = countProd > 0 ? (sumProd / countProd) : 0;
+            let avgEfi = countEfi > 0 ? (sumEfi / countEfi) : 0;
+
+            document.getElementById('kpiProd2').textContent = avgProd.toFixed(2);
+            document.getElementById('kpiEfi2').textContent = avgEfi.toFixed(2) + '%';
+
+            const selectedOperator = document.getElementById('selectedOperatorValue').value;
+            let isEsquema39 = false;
+            let isEsquema55 = false;
+
+            if (selectedOperator !== "") {
+                data.forEach(row => {
+                    if (areaKey && row[areaKey]) {
+                        let areaVal = String(row[areaKey]).toLowerCase();
+                        if (areaVal.includes("39")) isEsquema39 = true;
+                        if (areaVal.includes("55") || areaVal.includes("61")) isEsquema55 = true;
+                    }
+                });
+            } else {
+                areasPresentes.forEach(a => {
+                    if (a.includes("39")) isEsquema39 = true;
+                    if (a.includes("55") || a.includes("61")) isEsquema55 = true;
+                });
+            }
+
+            const card39 = document.getElementById('cardBono39');
+            const card55 = document.getElementById('cardBono55');
+
+            if (isEsquema39 && !isEsquema55) {
+                card39.style.display = 'flex';
+                card55.style.display = 'none';
+                let b39 = getBonoEsquema39(avgProd, avgEfi);
+                document.getElementById('kpiBono39').textContent = '$' + b39.total.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                document.getElementById('kpiSub39').textContent = `Prod ($${b39.pProd.toLocaleString()}) + Efi ($${b39.pEfi.toLocaleString()})`;
+            } else if (isEsquema55 && !isEsquema39) {
+                card39.style.display = 'none';
+                card55.style.display = 'flex';
+                let b55 = getBonoEsquema55(avgProd, avgEfi);
+                document.getElementById('kpiBono55').textContent = '$' + b55.total.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                document.getElementById('kpiSub55').textContent = `Prod ($${b55.pProd.toLocaleString()}) + Efi ($${b55.pEfi.toLocaleString()})`;
+            } else {
+                card39.style.display = 'none';
+                card55.style.display = 'none';
+            }
+        }
+
+        function renderConcentradoTable(data) {
+            const container = document.getElementById('concentradoTableContainer');
+            const { operatorKey, nameKey, areaKey } = getKeys(data);
+
+            if (!operatorKey) {
+                container.innerHTML = '<p style="color: red; text-align: center; padding: 20px;">No se encontró la columna de Número de Empleado u Operador en el archivo.</p>';
+                document.getElementById('downloadConcentradoBtn').style.display = 'none';
+                return;
+            }
+
+            const operatorGroups = {};
+            data.forEach(row => {
+                let opId = row[operatorKey];
+                if (opId !== undefined && opId !== null && String(opId).trim() !== "") {
+                    if (!operatorGroups[opId]) operatorGroups[opId] = [];
+                    operatorGroups[opId].push(row);
+                }
+            });
+
+            lastConcentradoRows = [];
+            let totalGeneralBono = 0;
+
+            Object.keys(operatorGroups).forEach(opId => {
+                let rows = operatorGroups[opId];
+                let opName = "";
+                if (nameKey) {
+                    let foundRowWithName = rows.find(r => r[nameKey] !== undefined && r[nameKey] !== null);
+                    if (foundRowWithName) opName = foundRowWithName[nameKey];
+                }
+
+                let sumProd = 0, countProd = 0;
+                let sumEfi = 0, countEfi = 0;
+                let is39 = false;
+                let is55 = false;
+
+                rows.forEach(r => {
+                    Object.keys(r).forEach(col => {
+                        let lowerCol = col.toLowerCase();
+                        if (lowerCol.includes("productividad") && !isNaN(r[col]) && r[col] !== '') {
+                            sumProd += Number(r[col]);
+                            countProd++;
+                        } else if ((lowerCol.includes("eficiencia") || lowerCol.includes("tr2")) && !isNaN(r[col]) && r[col] !== '') {
+                            let num = Number(r[col]);
+                            if (num <= 1 && num > 0) num = num * 100;
+                            sumEfi += num;
+                            countEfi++;
+                        }
+                    });
+
+                    if (areaKey && r[areaKey]) {
+                        let areaVal = String(r[areaKey]).toLowerCase();
+                        if (areaVal.includes("39")) is39 = true;
+                        if (areaVal.includes("55") || areaVal.includes("61")) is55 = true;
+                    }
+                });
+
+                let avgProd = countProd > 0 ? (sumProd / countProd) : 0;
+                let avgEfi = countEfi > 0 ? (sumEfi / countEfi) : 0;
+
+                let bonoData = { total: 0 };
+                let esquemaLabel = "Desconocido";
+
+                if (is39 && !is55) {
+                    bonoData = getBonoEsquema39(avgProd, avgEfi);
+                    esquemaLabel = "Esquema 39";
+                } else if (is55 && !is39) {
+                    bonoData = getBonoEsquema55(avgProd, avgEfi);
+                    esquemaLabel = "Esquema 55 - 61";
+                } else {
+                    bonoData = getBonoEsquema39(avgProd, avgEfi);
+                    esquemaLabel = "Esquema 39";
+                }
+
+                totalGeneralBono += bonoData.total;
+
+                lastConcentradoRows.push({
+                    opId: opId,
+                    opName: opName,
+                    esquema: esquemaLabel,
+                    avgProd: Number(avgProd.toFixed(2)),
+                    avgEfi: Number(avgEfi.toFixed(2)),
+                    bonoTotal: Number(bonoData.total.toFixed(2))
+                });
+            });
+
+            lastConcentradoRows.sort((a, b) => String(a.opId).localeCompare(String(b.opId), undefined, { numeric: true, sensitivity: 'base' }));
+
+            let html = `<table>
+                <thead>
+                    <tr>
+                        <th>Número de Empleado</th>
+                        <th>Nombre Operador</th>
+                        <th>Esquema</th>
+                        <th>Promedio Productividad</th>
+                        <th>Promedio Eficiencia TR2</th>
+                        <th>Bono Estimado</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+            lastConcentradoRows.forEach(item => {
+                html += `<tr>
+                    <td>${item.opId}</td>
+                    <td>${item.opName || '--'}</td>
+                    <td>${item.esquema}</td>
+                    <td>${item.avgProd.toFixed(2)}</td>
+                    <td>${item.avgEfi.toFixed(2)}%</td>
+                    <td>$${item.bonoTotal.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                </tr>`;
+            });
+
+            html += `</tbody>
+                <tfoot>
+                    <tr style="background-color: #f1f1f1; font-weight: bold;">
+                        <td colspan="5" style="text-align: right;">Total General Bonos Estimados:</td>
+                        <td style="color: var(--estafeta-red);">$${totalGeneralBono.toLocaleString('es-MX', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    </tr>
+                </tfoot>
+            </table>`;
+
+            container.innerHTML = html;
+            document.getElementById('downloadConcentradoBtn').style.display = 'inline-flex';
+        }
+
+        function downloadConcentradoExcel() {
+            if (!lastConcentradoRows || lastConcentradoRows.length === 0) return;
+
+            const exportData = lastConcentradoRows.map(item => ({
+                "Número de Empleado": item.opId,
+                "Nombre Operador": item.opName || '--',
+                "Esquema": item.esquema,
+                "Promedio Productividad": item.avgProd,
+                "Promedio Eficiencia TR2 (%)": item.avgEfi,
+                "Bono Estimado ($)": item.bonoTotal
+            }));
+
+            let totalGeneral = lastConcentradoRows.reduce((acc, curr) => acc + curr.bonoTotal, 0);
+            
+            exportData.push({
+                "Número de Empleado": "TOTAL GENERAL",
+                "Nombre Operador": "",
+                "Esquema": "",
+                "Promedio Productividad": "",
+                "Promedio Eficiencia TR2 (%)": "",
+                "Bono Estimado ($)": Number(totalGeneral.toFixed(2))
+            });
+
+            const worksheet = XLSX.utils.json_to_sheet(exportData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Concentrado Bonos");
+
+            XLSX.writeFile(workbook, "Concentrado_Bonos.xlsx");
+        }
+    </script>
+</body>
+</html>

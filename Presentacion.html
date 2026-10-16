@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resumen Funcional - Dashboard Operativo Estafeta</title>
+    <!-- Google Fonts & FontAwesome para Iconos -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --estafeta-red: #D2001A;
+            --estafeta-dark: #212529;
+            --estafeta-gray: #f8f9fa;
+            --estafeta-border: #dee2e6;
+            --text-color: #333333;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Roboto', sans-serif;
+        }
+        body {
+            background-color: #f4f6f9;
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            background: linear-gradient(135deg, var(--estafeta-red), #9b0013);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(210, 0, 26, 0.2);
+        }
+        header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 10px;
+        }
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border-top: 5px solid var(--estafeta-red);
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        }
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .card-header i {
+            font-size: 1.8rem;
+            color: var(--estafeta-red);
+            margin-right: 15px;
+            background: #fff0f1;
+            padding: 12px;
+            border-radius: 8px;
+        }
+        .card-header h3 {
+            font-size: 1.3rem;
+            color: var(--estafeta-dark);
+        }
+        .card ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .card ul li {
+            position: relative;
+            padding-left: 20px;
+            margin-bottom: 10px;
+            font-size: 0.95rem;
+            color: #555;
+        }
+        .card ul li::before {
+            content: "▪";
+            position: absolute;
+            left: 0;
+            color: var(--estafeta-red);
+            font-weight: bold;
+        }
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            font-size: 0.9rem;
+            color: #777;
+            border-top: 1px solid var(--estafeta-border);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1><i class="fa-solid fa-chart-line"></i> Resumen Funcional: Dashboard Operativo</h1>
+            <p>Estructura y capacidades del sistema de procesamiento local de datos logísticos</p>
+        </header>
+
+        <div class="grid">
+            <!-- 1. Carga y Validación -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <h3>Carga y Validación Local</h3>
+                </div>
+                <ul>
+                    <li>Carga directa de archivos de Excel (.xlsx o .xls) ejecutada de manera local en el navegador mediante SheetJS.</li>
+                    <li>Validación automática de la estructura y encabezados obligatorios requeridos (campos como celula, ut, % de bateria).</li>
+                    <li>Rechazo preventivo de archivos no compatibles mediante alertas interactivas.</li>
+                </ul>
+            </div>
+
+            <!-- 2. KPIs -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-gauge-high"></i>
+                    <h3>Panel de Indicadores (KPIs)</h3>
+                </div>
+                <ul>
+                    <li>Cálculo en tiempo real de rutas activas y carga global de paquetes asignados.</li>
+                    <li>Desglose porcentual y numérico de entregas exitosas, pendientes y devoluciones/excepciones.</li>
+                    <li>Métricas avanzadas de eficiencia operativa, porcentaje de avance general y productividad por ruta.</li>
+                </ul>
+            </div>
+
+            <!-- 3. Gráficos Interactivos -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-chart-pie"></i>
+                    <h3>Gráficos y Visualización</h3>
+                </div>
+                <ul>
+                    <li>Gráficos de barras dinámicos (Chart.js) que contrastan entregados, pendientes y devoluciones por ruta.</li>
+                    <li>Filtros múltiples avanzados y modo de visualización a pantalla completa para gráficos operativos.</li>
+                    <li>Clasificación gráfica de paquetería según la paleta de colores corporativos de Estafeta.</li>
+                </ul>
+            </div>
+
+            <!-- 4. Pestañas y Tablas -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-table-cells"></i>
+                    <h3>Pestañas de Datos Detallados</h3>
+                </div>
+                <ul>
+                    <li><strong>Resumen por Ruta:</strong> Tabla consolidada con barras de eficiencia y fila de Totales Generales.</li>
+                    <li><strong>Horarios y Tiempos:</strong> Control de salidas, primer/último movimiento y estado operativo.</li>
+                    <li><strong>Salida a Ruta y Recolecciones:</strong> Matrices de desglose por colores operativos y efectividad de recolección.</li>
+                </ul>
+            </div>
+
+            <!-- 5. Utilidades y Exportación -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-sliders"></i>
+                    <h3>Filtros y Utilidades</h3>
+                </div>
+                <ul>
+                    <li>Menús desplegables de selección múltiple interactivos para filtrado de rutas y tipos de operación.</li>
+                    <li>Búsqueda de texto en tiempo real integrada en las tablas de datos.</li>
+                    <li>Botón de limpieza global para restablecer filtros y vista de datos instantáneamente.</li>
+                </ul>
+            </div>
+
+            <!-- 6. Reportes y Diseño -->
+            <div class="card">
+                <div class="card-header">
+                    <i class="fa-solid fa-file-arrow-down"></i>
+                    <h3>Reportes y Estética</h3>
+                </div>
+                <ul>
+                    <li>Generación y descarga de reportes procesados en formato Excel desde la tabla dinámica.</li>
+                    <li>Diseño web adaptable optimizado con la identidad visual corporativa (rojo Estafeta y tipografía Roboto).</li>
+                    <li>Arquitectura limpia basada en una sola página (Single File HTML) de fácil despliegue.</li>
+                </ul>
+            </div>
+        </div>
+
+        <footer>
+            <p>Documentación técnica generada automáticamente para el proyecto logístico Estafeta &copy; 2026</p>
+        </footer>
+    </div>
+
+    <script>
+        /* ==========================================================================
+           PARTE 1: CÓDIGO PARA EL INDEX / LOGIN (Al iniciar sesión de forma exitosa)
+           ========================================================================== */
+        function iniciarSesionExitosa(rolSeleccionado) {
+            // rolSeleccionado debe ser 'admin' o 'user'
+            // Codificamos el rol junto con la marca de tiempo en Base64 para mayor seguridad
+            const tokenSeguro = btoa(rolSeleccionado + "|" + Date.now()); 
+            localStorage.setItem('auth_role', tokenSeguro);
+            
+            // Redirigir al módulo operativo
+            window.location.href = 'Tiempos muertos Operativo TAX.html';
+        }
+
+
+        /* ==========================================================================
+           PARTE 2: CÓDIGO PARA LOS MÓDULOS OPERATIVOS (Seguridad, Decodificación e Inactividad)
+           ========================================================================== */
+        window.addEventListener('DOMContentLoaded', () => {
+            // 1. Consultar el rol activo codificado guardado en el navegador
+            const encodedRole = localStorage.getItem('auth_role');
+            
+            if (!encodedRole) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            let rol = '';
+            try {
+                // Decodificamos el Base64 para evitar modificaciones simples desde la consola
+                const decoded = atob(encodedRole);
+                const parts = decoded.split('|');
+                if (parts.length >= 1) {
+                    rol = parts[0];
+                }
+            } catch (e) {
+                // Si el valor fue alterado y no es un Base64 válido, redirigir al login
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            if (!rol) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            // 2. Control de Inactividad (Cierre automático de sesión a los 30 minutos)
+            let inactivityTimer;
+            const maxInactivityMinutes = 30; // Puedes ajustar los minutos aquí
+
+            function resetInactivityTimer() {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(() => {
+                    alert("Su sesión ha expirado por inactividad.");
+                    localStorage.removeItem('auth_role');
+                    window.location.href = 'Panel de Control Operativo.html';
+                }, maxInactivityMinutes * 60 * 1000);
+            }
+
+            // Registrar eventos del usuario para reiniciar el contador de inactividad
+            ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
+                window.addEventListener(event, resetInactivityTimer);
+            });
+            resetInactivityTimer();
+
+            // 3. Aplicar restricciones de seguridad si NO es administrador
+            if (rol !== 'admin') {
+                console.log("Aplicando medidas de seguridad en este módulo.");
+                
+                // Bloquear Clic Secundario
+                document.addEventListener('contextmenu', e => e.preventDefault());
+
+                // Bloquear Selección de Texto
+                document.addEventListener('selectstart', e => e.preventDefault());
+
+                // Bloquear Copiar
+                document.addEventListener('copy', e => e.preventDefault());
+            } else {
+                console.warn("Modo Administrador: Módulo libre sin restricciones.");
+            }
+        });
+    </script>
+</body>
+</html>

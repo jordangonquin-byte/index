@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Logístico - Estafeta</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js DataLabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <!-- SheetJS (xlsx) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        .bg-estafeta-red { background-color: #DA291C; }
+        .text-estafeta-red { color: #DA291C; }
+        .border-estafeta-red { border-color: #DA291C; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen flex flex-col relative">
+
+    <!-- BANNER ACTUALIZADO -->
+    <header class="top-bar flex justify-between items-center bg-[#DA291C] text-white shadow-md py-4 px-6 flex-wrap gap-4">
+        <div class="flex items-center space-x-3">
+            <div class="bg-white text-estafeta-red font-black text-xl px-3 py-1 rounded shadow">ESTAFETA</div>
+            <div>
+                <h1 class="text-xl font-bold tracking-wide">Orden de recolección</h1>
+            </div>
+        </div>
+        <!-- Right side: File upload & drag drop -->
+        <div id="dropZone" class="flex items-center space-x-3 bg-red-800 bg-opacity-40 p-2 rounded-lg border-2 border-dashed border-red-300 transition hover:bg-opacity-60 ml-auto">
+            <div class="text-xs text-red-100 hidden sm:block text-right">
+                <span class="font-semibold block">Arrastra tu Excel aquí</span>
+                <span>o usa el botón</span>
+            </div>
+            <label class="cursor-pointer bg-white text-red-700 px-4 py-2 rounded shadow font-semibold text-sm hover:bg-gray-100 flex items-center space-x-2 transition">
+                <i class="fas fa-file-excel text-green-600"></i>
+                <span>Cargar Excel</span>
+                <input type="file" id="excelFile" accept=".xlsx, .xls" class="hidden">
+            </label>
+        </div>
+    </header>
+
+    <!-- MAIN CONTAINER -->
+    <main class="flex-grow p-4 md:p-6 max-w-7xl mx-auto w-full space-y-6">
+
+        <!-- DASHBOARD CONTENT CONTAINER (OCULTO POR DEFECTO HASTA CARGAR EXCEL) -->
+        <div id="dashboardContent" class="space-y-6 hidden">
+
+            <!-- FILTERS & CONTROLS BAR -->
+            <div class="bg-white p-4 rounded-xl shadow-sm flex flex-wrap gap-4 items-center justify-between">
+                <div class="flex flex-wrap gap-3 items-center">
+                    <!-- FILTRO DE FECHA INTERACTIVO -->
+                    <div class="relative">
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Filtrar Fecha:</label>
+                        <div onclick="toggleDatePicker()" id="dateFilterButton" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm bg-white cursor-pointer flex items-center justify-between space-x-3 hover:border-red-500 transition min-w-[160px]">
+                            <span id="selectedDateText" class="text-gray-700">Todas las fechas</span>
+                            <i class="fas fa-calendar-alt text-estafeta-red"></i>
+                        </div>
+
+                        <!-- POPUP CALENDARIO -->
+                        <div id="datePickerPopup" class="absolute left-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 p-4 z-50 hidden w-72 select-none">
+                            <div class="flex justify-between items-center mb-3 border-b pb-2">
+                                <div class="flex space-x-1">
+                                    <button type="button" onclick="changeMonth(-12)" class="text-gray-600 hover:text-estafeta-red px-1.5 py-1 text-xs font-bold" title="Año anterior">&laquo;</button>
+                                    <button type="button" onclick="changeMonth(-1)" class="text-gray-600 hover:text-estafeta-red px-1.5 py-1 text-xs font-bold" title="Mes anterior">&lsaquo;</button>
+                                </div>
+                                <div id="calendarMonthYear" class="text-sm font-bold text-gray-800 text-center capitalize">
+                                    Septiembre 2026
+                                </div>
+                                <div class="flex space-x-1">
+                                    <button type="button" onclick="changeMonth(1)" class="text-gray-600 hover:text-estafeta-red px-1.5 py-1 text-xs font-bold" title="Mes siguiente">&rsaquo;</button>
+                                    <button type="button" onclick="changeMonth(12)" class="text-gray-600 hover:text-estafeta-red px-1.5 py-1 text-xs font-bold" title="Año siguiente">&raquo;</button>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-gray-400 mb-2">
+                                <span>dom</span><span>lun</span><span>mar</span><span>mie</span><span>jue</span><span>vie</span><span>sab</span>
+                            </div>
+                            <div id="calendarDaysGrid" class="grid grid-cols-7 gap-1 text-center text-xs">
+                                <!-- Generado dinámicamente -->
+                            </div>
+                            <div class="mt-3 pt-2 border-t text-center flex justify-between items-center text-xs">
+                                <button type="button" onclick="clearDateFilter()" class="text-gray-500 hover:text-gray-800 font-medium">Limpiar</button>
+                                <button type="button" onclick="selectToday()" class="text-estafeta-red font-bold hover:underline">(hoy)</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Filtrar Ruta:</label>
+                        <select id="filterRuta" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-red-500">
+                            <option value="">Todas las Rutas</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Filtrar Estado:</label>
+                        <select id="filterEstado" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-red-500">
+                            <option value="">Todos los Estados</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Filtrar Tipo:</label>
+                        <select id="filterTipo" class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-red-500">
+                            <option value="">Todos los Tipos</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <button onclick="resetFilters()" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-300 transition">
+                        <i class="fas fa-rotate-left mr-1"></i> Restablecer Filtros
+                    </button>
+                    <span id="recordCount" class="text-xs bg-red-100 text-estafeta-red px-3 py-1.5 rounded-lg font-bold">0 registros</span>
+                </div>
+            </div>
+
+            <!-- KPI CARDS -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <!-- Total Órdenes -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-estafeta-red flex items-center justify-between transform transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl cursor-pointer">
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">Total Órdenes</p>
+                        <h3 id="kpiTotalOrdenes" class="text-2xl font-black text-gray-800 mt-1">0</h3>
+                    </div>
+                    <div class="bg-red-50 text-estafeta-red p-3.5 rounded-xl shadow-inner flex items-center justify-center">
+                        <i class="fas fa-boxes text-xl"></i>
+                    </div>
+                </div>
+                <!-- Cantidad Paquetes -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-blue-500 flex items-center justify-between transform transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl cursor-pointer">
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">Cantidad Paquetes</p>
+                        <h3 id="kpiTotalCantidad" class="text-2xl font-black text-gray-800 mt-1">0</h3>
+                    </div>
+                    <div class="bg-blue-50 text-blue-600 p-3.5 rounded-xl shadow-inner flex items-center justify-center">
+                        <i class="fas fa-box-open text-xl"></i>
+                    </div>
+                </div>
+                <!-- Enrutados -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-yellow-500 flex items-center justify-between transform transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl cursor-pointer">
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">Enrutados</p>
+                        <h3 id="kpiEnrutados" class="text-2xl font-black text-gray-800 mt-1">0</h3>
+                    </div>
+                    <div class="bg-yellow-50 text-yellow-600 p-3.5 rounded-xl shadow-inner flex items-center justify-center">
+                        <i class="fas fa-truck-fast text-xl"></i>
+                    </div>
+                </div>
+                <!-- Excepcionados -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-red-400 flex items-center justify-between transform transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl cursor-pointer">
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">Excepcionados</p>
+                        <h3 id="kpiExcepcionados" class="text-2xl font-black text-gray-800 mt-1">0</h3>
+                    </div>
+                    <div class="bg-red-50 text-red-500 p-3.5 rounded-xl shadow-inner flex items-center justify-center">
+                        <i class="fas fa-triangle-exclamation text-xl"></i>
+                    </div>
+                </div>
+                <!-- Recolectados -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-green-500 flex items-center justify-between transform transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl cursor-pointer">
+                    <div>
+                        <p class="text-xs text-gray-400 uppercase tracking-wider font-bold">Recolectados</p>
+                        <h3 id="kpiRecolectados" class="text-2xl font-black text-gray-800 mt-1">0</h3>
+                    </div>
+                    <div class="bg-green-50 text-green-600 p-3.5 rounded-xl shadow-inner flex items-center justify-center">
+                        <i class="fas fa-circle-check text-xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SECCIÓN DE REPORTES EN TABLAS Y GRÁFICOS -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 1. Distribución por Estado -->
+                <div id="cardEstado" class="bg-white p-5 rounded-xl shadow-sm flex flex-col transition-all duration-300">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-gray-700 text-sm"><i class="fas fa-table mr-2 text-estafeta-red"></i>Distribución por Estado</h3>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs text-gray-400">Resumen Cantidades</span>
+                            <button onclick="toggleFullscreen('cardEstado', this)" class="text-gray-400 hover:text-estafeta-red p-1 transition" title="Pantalla Completa">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="containerEstadoScroll" class="overflow-x-auto flex-grow" style="max-height: 250px;">
+                        <table class="w-full text-xs text-left border-collapse">
+                            <thead class="bg-gray-50 text-gray-600 uppercase sticky top-0">
+                                <tr>
+                                    <th class="p-2">Estado</th>
+                                    <th class="p-2 text-right">Cantidad (Órdenes)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableEstadoBody">
+                                <tr><td colspan="2" class="p-4 text-center text-gray-400">Sin datos</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 2. Volumen por Ruta -->
+                <div id="cardRuta" class="bg-white p-5 rounded-xl shadow-sm flex flex-col transition-all duration-300">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-gray-700 text-sm"><i class="fas fa-table mr-2 text-estafeta-red"></i>Volumen por Ruta</h3>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs text-gray-400">Resumen Cantidades</span>
+                            <button onclick="toggleFullscreen('cardRuta', this)" class="text-gray-400 hover:text-estafeta-red p-1 transition" title="Pantalla Completa">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="containerRutaScroll" class="overflow-x-auto flex-grow" style="max-height: 250px;">
+                        <table class="w-full text-xs text-left border-collapse">
+                            <thead class="bg-gray-50 text-gray-600 uppercase sticky top-0">
+                                <tr>
+                                    <th class="p-2">Ruta</th>
+                                    <th class="p-2 text-right">Cantidad (Órdenes)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableRutaBody">
+                                <tr><td colspan="2" class="p-4 text-center text-gray-400">Sin datos</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 3. Tipo de Servicio -->
+                <div id="cardTipoServicio" class="bg-white p-5 rounded-xl shadow-sm flex flex-col transition-all duration-300">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-gray-700 text-sm"><i class="fas fa-chart-pie mr-2 text-estafeta-red"></i>Tipo de Servicio</h3>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs text-gray-400">Valores internos</span>
+                            <button onclick="toggleFullscreen('cardTipoServicio', this)" class="text-gray-400 hover:text-estafeta-red p-1 transition" title="Pantalla Completa">
+                                <i class="fas fa-expand"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="containerTipoScroll" class="relative flex-grow flex items-center justify-center" style="height: 220px;">
+                        <canvas id="chartTipo"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TABLE SECTION -->
+            <div id="cardDetalleOrdenes" class="bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300">
+                <div class="p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-3">
+                    <div class="flex items-center space-x-3 w-full sm:w-auto">
+                        <h3 class="font-bold text-gray-800"><i class="fas fa-table mr-2 text-estafeta-red"></i>Detalle de Órdenes y Envíos</h3>
+                        <span id="tableCountBadge" class="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full font-semibold">0 filas</span>
+                    </div>
+                    <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                        <div class="relative">
+                            <input type="text" id="searchInput" placeholder="Buscar en tabla..." class="border border-gray-300 rounded-lg pl-8 pr-3 py-1.5 text-sm focus:outline-none focus:border-red-500 w-full sm:w-64">
+                            <i class="fas fa-search absolute left-2.5 top-2.5 text-gray-400 text-xs"></i>
+                        </div>
+                        <button onclick="exportToExcel()" class="bg-green-600 hover:bg-green-700 text-white px-3.5 py-1.5 rounded-lg text-sm font-semibold flex items-center space-x-1.5 shadow-sm transition">
+                            <i class="fas fa-file-excel"></i>
+                            <span>Exportar Excel</span>
+                        </button>
+                        <button onclick="toggleFullscreen('cardDetalleOrdenes', this)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 p-2 rounded-lg text-sm font-semibold flex items-center justify-center transition" title="Pantalla Completa">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="containerDetalleScroll" class="overflow-x-auto">
+                    <table id="dataTable" class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-gray-50 text-gray-600 uppercase font-semibold sticky top-0 z-10 border-b border-gray-200">
+                            <tr>
+                                <th class="p-3 cursor-pointer hover:bg-gray-200 transition" onclick="sortTable(0)">OR <i class="fas fa-sort text-gray-400 ml-1"></i></th>
+                                <th class="p-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="cursor-pointer hover:text-red-600" onclick="sortTable(1)">Fecha <i class="fas fa-sort text-gray-400 ml-1"></i></span>
+                                        <i class="fas fa-filter text-estafeta-red cursor-pointer p-1" title="Filtrar por Fecha" onclick="openColumnFilterModal('Fecha', 'Fecha', event)"></i>
+                                    </div>
+                                </th>
+                                <th class="p-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="cursor-pointer hover:text-red-600" onclick="sortTable(2)">Ruta <i class="fas fa-sort text-gray-400 ml-1"></i></span>
+                                        <i class="fas fa-filter text-estafeta-red cursor-pointer p-1" title="Filtrar por Ruta" onclick="openColumnFilterModal('Ruta', 'Ruta', event)"></i>
+                                    </div>
+                                </th>
+                                <th class="p-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="cursor-pointer hover:text-red-600" onclick="sortTable(3)">CP <i class="fas fa-sort text-gray-400 ml-1"></i></span>
+                                        <i class="fas fa-filter text-estafeta-red cursor-pointer p-1" title="Filtrar por CP" onclick="openColumnFilterModal('CP', 'CP', event)"></i>
+                                    </div>
+                                </th>
+                                <th class="p-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="cursor-pointer hover:text-red-600" onclick="sortTable(4)">Estado <i class="fas fa-sort text-gray-400 ml-1"></i></span>
+                                        <i class="fas fa-filter text-estafeta-red cursor-pointer p-1" title="Filtrar por Estado" onclick="openColumnFilterModal('Estado', 'Estado', event)"></i>
+                                    </div>
+                                </th>
+                                <th class="p-3 cursor-pointer hover:bg-gray-200 transition" onclick="sortTable(5)">Dirección <i class="fas fa-sort text-gray-400 ml-1"></i></th>
+                                <th class="p-3 cursor-pointer hover:bg-gray-200 transition" onclick="sortTable(6)">Cliente <i class="fas fa-sort text-gray-400 ml-1"></i></th>
+                                <th class="p-3 cursor-pointer hover:bg-gray-200 transition" onclick="sortTable(7)">Razón Social <i class="fas fa-sort text-gray-400 ml-1"></i></th>
+                                <th class="p-3 cursor-pointer hover:bg-gray-200 transition" onclick="sortTable(8)">Cant <i class="fas fa-sort text-gray-400 ml-1"></i></th>
+                                <th class="p-3 cursor-pointer hover:bg-gray-200 transition" onclick="sortTable(9)">Tipo <i class="fas fa-sort text-gray-400 ml-1"></i></th>
+                                <th class="p-3 cursor-pointer hover:bg-gray-200 transition" onclick="sortTable(10)">Excepción <i class="fas fa-sort text-gray-400 ml-1"></i></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="text-gray-700">
+                            <!-- Dinámico -->
+                        </tbody>
+                    </table>
+                </div>
+                <!-- CONTROLES DE PAGINACIÓN -->
+                <div id="paginationContainer" class="p-4 border-t border-gray-100 flex items-center justify-between bg-gray-50/50 hidden">
+                    <span id="paginationInfo" class="text-xs text-gray-500 font-medium">Mostrando 1 - 10 de 0 registros</span>
+                    <div class="flex items-center space-x-1">
+                        <button id="prevPageBtn" onclick="changePage(-1)" class="px-3 py-1 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-100 transition disabled:opacity-40 disabled:cursor-not-allowed">Anterior</button>
+                        <div id="pageNumbersContainer" class="flex items-center space-x-1 px-2"></div>
+                        <button id="nextPageBtn" onclick="changePage(1)" class="px-3 py-1 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-100 transition disabled:opacity-40 disabled:cursor-not-allowed">Siguiente</button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- VENTANA MODAL PARA FILTROS DE COLUMNA -->
+    <div id="columnFilterModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+            <div class="bg-gray-900 text-white px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-filter text-estafeta-red"></i>
+                    <h3 id="modalColumnTitle" class="font-bold text-base">Filtrar Columna</h3>
+                </div>
+                <button onclick="closeColumnFilterModal()" class="text-gray-400 hover:text-white text-lg font-bold">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="relative">
+                    <input type="text" id="modalSearchValue" placeholder="Buscar valor..." class="w-full border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-red-500">
+                    <i class="fas fa-search absolute left-3 top-3 text-gray-400 text-xs"></i>
+                </div>
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-gray-600 font-medium">Seleccionar valores:</span>
+                    <div class="space-x-2">
+                        <button type="button" onclick="selectAllModalValues(true)" class="text-estafeta-red font-bold hover:underline">Todos</button>
+                        <span class="text-gray-300">|</span>
+                        <button type="button" onclick="selectAllModalValues(false)" class="text-gray-600 font-bold hover:underline">Ninguno</button>
+                    </div>
+                </div>
+                <div id="modalCheckboxList" class="border border-gray-200 rounded-xl p-3 max-h-60 overflow-y-auto space-y-2">
+                    <!-- Dinámico -->
+                </div>
+            </div>
+            <div class="bg-gray-50 px-6 py-3 border-t border-gray-200 flex justify-end space-x-3">
+                <button onclick="closeColumnFilterModal()" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-gray-300 transition">Cancelar</button>
+                <button onclick="applyColumnFilterModal()" class="bg-estafeta-red hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition">Aplicar Filtro</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOTÓN FLOTANTE INFERIOR DERECHA (LIMPIAR FILTROS) -->
+    <div id="floatingFilterBtnContainer" class="fixed bottom-6 right-6 z-40 hidden transition-all duration-300">
+        <button onclick="resetFilters()" class="bg-gray-900 hover:bg-gray-800 text-white px-5 py-3 rounded-full shadow-2xl font-medium text-sm flex items-center space-x-2 border border-gray-700 transition transform hover:scale-105">
+            <i class="fas fa-rotate-left"></i>
+            <span id="floatingBtnText">Limpiar Filtros (0)</span>
+        </button>
+    </div>
+
+    <!-- FOOTER OCULTO -->
+    <footer class="bg-white border-t border-gray-200 text-center py-3 text-xs text-gray-500 mt-auto hidden">
+        Dashboard Logístico Estafeta &bull; Procesamiento 100% Local en el Navegador &bull; 2026
+    </footer>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        /* ==========================================================================
+           PARTE 1: CÓDIGO PARA EL INDEX / LOGIN (Al iniciar sesión de forma exitosa)
+           ========================================================================== */
+        function iniciarSesionExitosa(rolSeleccionado) {
+            // rolSeleccionado debe ser 'admin' o 'user'
+            // Codificamos el rol junto con la marca de tiempo en Base64 para mayor seguridad
+            const tokenSeguro = btoa(rolSeleccionado + "|" + Date.now()); 
+            localStorage.setItem('auth_role', tokenSeguro);
+            
+            // Redirigir al módulo operativo
+            window.location.href = 'Tiempos muertos Operativo TAX.html';
+        }
+
+
+        /* ==========================================================================
+           PARTE 2: CÓDIGO PARA LOS MÓDULOS OPERATIVOS (Seguridad, Decodificación e Inactividad)
+           ========================================================================== */
+        window.addEventListener('DOMContentLoaded', () => {
+            // 1. Consultar el rol activo codificado guardado en el navegador
+            const encodedRole = localStorage.getItem('auth_role');
+            
+            if (!encodedRole) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            let rol = '';
+            try {
+                // Decodificamos el Base64 para evitar modificaciones simples desde la consola
+                const decoded = atob(encodedRole);
+                const parts = decoded.split('|');
+                if (parts.length >= 1) {
+                    rol = parts[0];
+                }
+            } catch (e) {
+                // Si el valor fue alterado y no es un Base64 válido, redirigir al login
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            if (!rol) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            // 2. Control de Inactividad (Cierre automático de sesión a los 30 minutos)
+            let inactivityTimer;
+            const maxInactivityMinutes = 30; // Puedes ajustar los minutos aquí
+
+            function resetInactivityTimer() {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(() => {
+                    alert("Su sesión ha expirado por inactividad.");
+                    localStorage.removeItem('auth_role');
+                    window.location.href = 'Panel de Control Operativo.html';
+                }, maxInactivityMinutes * 60 * 1000);
+            }
+
+            // Registrar eventos del usuario para reiniciar el contador de inactividad
+            ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
+                window.addEventListener(event, resetInactivityTimer);
+            });
+            resetInactivityTimer();
+
+            // 3. Aplicar restricciones de seguridad si NO es administrador
+            if (rol !== 'admin') {
+                console.log("Aplicando medidas de seguridad en este módulo.");
+                
+                // Bloquear Clic Secundario
+                document.addEventListener('contextmenu', e => e.preventDefault());
+
+                // Bloquear Selección de Texto
+                document.addEventListener('selectstart', e => e.preventDefault());
+
+                // Bloquear Copiar
+                document.addEventListener('copy', e => e.preventDefault());
+            } else {
+                console.warn("Modo Administrador: Módulo libre sin restricciones.");
+            }
+        });
+
+        let globalData = [];
+        let filteredData = [];
+        let chartTipo = null;
+        let sortDirections = {};
+        
+        let activeColumnFilters = { Fecha: [], Ruta: [], CP: [], Estado: [] };
+        let currentFilterColKey = '';
+
+        let calendarCurrentDate = new Date(2026, 8, 14);
+        let selectedFilterDate = null;
+
+        // Paginación
+        let currentPage = 1;
+        const rowsPerPage = 10;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            renderCalendar();
+        });
+
+        // Función global para alternar pantalla completa en cualquier contenedor de tarjeta/tabla
+        function toggleFullscreen(cardId, btnElement) {
+            const card = document.getElementById(cardId);
+            const icon = btnElement.querySelector('i');
+            const isFullscreen = card.classList.contains('fixed');
+
+            if (!isFullscreen) {
+                // Guardar dimensiones y estilos previos si fuera necesario, y aplicar pantalla completa
+                card.dataset.prevClass = card.className;
+                card.classList.remove('relative', 'rounded-xl', 'shadow-sm');
+                card.classList.add('fixed', 'inset-4', 'z-50', 'rounded-2xl', 'shadow-2xl', 'flex', 'flex-col', 'bg-white', 'p-6', 'border', 'border-gray-200');
+                
+                // Ajustar áreas de scroll internas para ocupar todo el alto disponible
+                if (cardId === 'cardEstado') {
+                    document.getElementById('containerEstadoScroll').style.maxHeight = 'calc(100vh - 180px)';
+                } else if (cardId === 'cardRuta') {
+                    document.getElementById('containerRutaScroll').style.maxHeight = 'calc(100vh - 180px)';
+                    updateRutaTable(); // Actualizar a 2 columnas de datos
+                } else if (cardId === 'cardTipoServicio') {
+                    document.getElementById('containerTipoScroll').style.height = 'calc(100vh - 180px)';
+                    if (chartTipo) chartTipo.resize();
+                } else if (cardId === 'cardDetalleOrdenes') {
+                    document.getElementById('containerDetalleScroll').style.maxHeight = 'calc(100vh - 220px)';
+                }
+
+                if (icon) {
+                    icon.classList.remove('fa-expand');
+                    icon.classList.add('fa-compress');
+                }
+                btnElement.title = "Restaurar Tamaño";
+            } else {
+                // Salir de pantalla completa
+                card.className = "bg-white p-5 rounded-xl shadow-sm flex flex-col transition-all duration-300";
+                if (cardId === 'cardDetalleOrdenes') {
+                    card.className = "bg-white rounded-xl shadow-sm overflow-hidden transition-all duration-300";
+                }
+
+                // Restaurar alturas originales
+                if (cardId === 'cardEstado') {
+                    document.getElementById('containerEstadoScroll').style.maxHeight = '250px';
+                } else if (cardId === 'cardRuta') {
+                    document.getElementById('containerRutaScroll').style.maxHeight = '250px';
+                    updateRutaTable(); // Volver a 1 columna de datos
+                } else if (cardId === 'cardTipoServicio') {
+                    document.getElementById('containerTipoScroll').style.height = '220px';
+                    if (chartTipo) chartTipo.resize();
+                } else if (cardId === 'cardDetalleOrdenes') {
+                    document.getElementById('containerDetalleScroll').style.maxHeight = 'none';
+                }
+
+                if (icon) {
+                    icon.classList.remove('fa-compress');
+                    icon.classList.add('fa-expand');
+                }
+                btnElement.title = "Pantalla Completa";
+            }
+        }
+
+        function validarArchivo(encabezados) {
+            if (!encabezados || encabezados.length === 0) return false;
+            const normalizados = encabezados.map(h => String(h || '').trim().toLowerCase().replace(/[\r\n]+/g, ''));
+            return normalizados.includes("or") && normalizados.includes("cp") && normalizados.includes("fecha de programación");
+        }
+
+        function setupEventListeners() {
+            document.getElementById('filterRuta').addEventListener('change', () => { currentPage = 1; applyFilters(); });
+            document.getElementById('filterEstado').addEventListener('change', () => { currentPage = 1; applyFilters(); });
+            document.getElementById('filterTipo').addEventListener('change', () => { currentPage = 1; applyFilters(); });
+            document.getElementById('searchInput').addEventListener('input', () => { currentPage = 1; applyFilters(); });
+
+            document.addEventListener('click', (e) => {
+                const picker = document.getElementById('datePickerPopup');
+                const btn = document.getElementById('dateFilterButton');
+                if (!picker.contains(e.target) && !btn.contains(e.target)) {
+                    picker.classList.add('hidden');
+                }
+            });
+
+            const fileInput = document.getElementById('excelFile');
+            fileInput.addEventListener('change', handleFileSelect);
+
+            const dropZone = document.getElementById('dropZone');
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    dropZone.classList.add('bg-red-700', 'border-white');
+                }, false);
+            });
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    dropZone.classList.remove('bg-red-700', 'border-white');
+                }, false);
+            });
+            dropZone.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                if (files.length > 0) processExcelFile(files[0]);
+            }, false);
+        }
+
+        function toggleDatePicker() {
+            const popup = document.getElementById('datePickerPopup');
+            popup.classList.toggle('hidden');
+        }
+
+        function changeMonth(delta) {
+            calendarCurrentDate.setMonth(calendarCurrentDate.getMonth() + delta);
+            renderCalendar();
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendarDaysGrid');
+            const monthYearLabel = document.getElementById('calendarMonthYear');
+            grid.innerHTML = '';
+
+            const year = calendarCurrentDate.getFullYear();
+            const month = calendarCurrentDate.getMonth();
+
+            const monthsNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            monthYearLabel.textContent = `${monthsNames[month]} ${year}`;
+
+            const firstDayIndex = new Date(year, month, 1).getDay();
+            const totalDays = new Date(year, month + 1, 0).getDate();
+            const prevTotalDays = new Date(year, month, 0).getDate();
+
+            for (let i = firstDayIndex - 1; i >= 0; i--) {
+                const dayNum = prevTotalDays - i;
+                const cell = document.createElement('div');
+                cell.className = "p-1.5 text-gray-300 cursor-default";
+                cell.textContent = dayNum;
+                grid.appendChild(cell);
+            }
+
+            for (let d = 1; d <= totalDays; d++) {
+                const cell = document.createElement('div');
+                const mFormatted = String(month + 1).padStart(2, '0');
+                const dFormatted = String(d).padStart(2, '0');
+                const dateStr = `${year}-${mFormatted}-${dFormatted}`;
+
+                cell.className = "p-1.5 rounded-lg cursor-pointer hover:bg-gray-100 text-gray-700 font-medium transition";
+                
+                if (dateStr === selectedFilterDate) {
+                    cell.className = "p-1.5 rounded-lg cursor-pointer bg-estafeta-red text-white font-bold shadow";
+                }
+
+                cell.textContent = d;
+                cell.onclick = () => {
+                    selectedFilterDate = dateStr;
+                    document.getElementById('selectedDateText').textContent = `${dFormatted}/${mFormatted}/${year}`;
+                    document.getElementById('datePickerPopup').classList.add('hidden');
+                    renderCalendar();
+                    currentPage = 1;
+                    applyFilters();
+                };
+                grid.appendChild(cell);
+            }
+
+            const totalCellsSoFar = firstDayIndex + totalDays;
+            const remainingCells = totalCellsSoFar <= 35 ? 35 - totalCellsSoFar : 42 - totalCellsSoFar;
+            for (let i = 1; i <= remainingCells; i++) {
+                const cell = document.createElement('div');
+                cell.className = "p-1.5 text-gray-300 cursor-default";
+                cell.textContent = i;
+                grid.appendChild(cell);
+            }
+        }
+
+        function clearDateFilter() {
+            selectedFilterDate = null;
+            document.getElementById('selectedDateText').textContent = "Todas las fechas";
+            document.getElementById('datePickerPopup').classList.add('hidden');
+            renderCalendar();
+            currentPage = 1;
+            applyFilters();
+        }
+
+        function selectToday() {
+            const now = new Date();
+            calendarCurrentDate = new Date(now.getFullYear(), now.getMonth(), 1);
+            const mFormatted = String(now.getMonth() + 1).padStart(2, '0');
+            const dFormatted = String(now.getDate()).padStart(2, '0');
+            selectedFilterDate = `${now.getFullYear()}-${mFormatted}-${dFormatted}`;
+            document.getElementById('selectedDateText').textContent = `${dFormatted}/${mFormatted}/${now.getFullYear()}`;
+            document.getElementById('datePickerPopup').classList.add('hidden');
+            renderCalendar();
+            currentPage = 1;
+            applyFilters();
+        }
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            if (files.length > 0) processExcelFile(files[0]);
+        }
+
+        function processExcelFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array', cellDates: true});
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, {raw: false, header: 1});
+                    
+                    if (json.length === 0) {
+                        alert("El archivo Excel está vacío.");
+                        return;
+                    }
+
+                    const headers = json[0];
+
+                    if (!validarArchivo(headers)) {
+                        alert("El archivo no es válido. Debe contener las columnas: 'OR', 'CP' y 'Fecha de Programación'.");
+                        return;
+                    }
+
+                    const rows = json.slice(1);
+
+                    globalData = rows.map(row => {
+                        return {
+                            Recibida: row[0] || null,
+                            OR: row[1] || '',
+                            Fecha: row[2] || '',
+                            Ruta: row[3] || '',
+                            CP: row[4] || '',
+                            Dirección: row[5] || '',
+                            "Número de Cliente": row[6] || '',
+                            "Razón Social": row[7] || '',
+                            Cantidad: Number(row[8] || 1),
+                            Tipo: row[9] || 'PAQUETERIA',
+                            Excepción: row[10] || null,
+                            Estado: row[11] || 'ENRUTADO'
+                        };
+                    }).filter(d => d.OR || d.Ruta || d.Dirección);
+
+                    document.getElementById('dashboardContent').classList.remove('hidden');
+
+                    initDashboard(globalData);
+                } catch (err) {
+                    console.error(err);
+                    alert("Error al procesar el archivo Excel. Asegúrate de que el formato sea correcto.");
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function initDashboard(data) {
+            populateFilterDropdowns(data);
+            activeColumnFilters = { Fecha: [], Ruta: [], CP: [], Estado: [] };
+            filteredData = [...data];
+            currentPage = 1;
+            updateDashboard();
+        }
+
+        function populateFilterDropdowns(data) {
+            const rutas = [...new Set(data.map(d => d.Ruta))].filter(Boolean).sort();
+            const estados = [...new Set(data.map(d => d.Estado))].filter(Boolean).sort();
+            const tipos = [...new Set(data.map(d => d.Tipo))].filter(Boolean).sort();
+
+            fillSelect('filterRuta', rutas, "Todas las Rutas");
+            fillSelect('filterEstado', estados, "Todos los Estados");
+            fillSelect('filterTipo', tipos, "Todos los Tipos");
+        }
+
+        function fillSelect(elementId, items, defaultText) {
+            const select = document.getElementById(elementId);
+            if (!select) return;
+            const currentVal = select.value;
+            select.innerHTML = `<option value="">${defaultText}</option>`;
+            items.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item;
+                opt.textContent = item;
+                if (item === currentVal) opt.selected = true;
+                select.appendChild(opt);
+            });
+        }
+
+        function openColumnFilterModal(colKey, colDisplayName, event) {
+            if (event) event.stopPropagation();
+            currentFilterColKey = colKey;
+            document.getElementById('modalColumnTitle').textContent = `Filtrar Columna: ${colDisplayName}`;
+            document.getElementById('modalSearchValue').value = '';
+
+            const uniqueVals = [...new Set(globalData.map(d => {
+                let val = d[colKey];
+                if (colKey === 'Fecha') {
+                    return val ? String(val).substring(0,10) : '';
+                }
+                return val !== null && val !== undefined ? String(val) : '';
+            }))].filter(v => v !== '').sort();
+
+            let currentSelected = activeColumnFilters[colKey];
+            if (!currentSelected || currentSelected.length === 0) {
+                currentSelected = [...uniqueVals];
+            }
+
+            renderModalCheckboxes(uniqueVals, currentSelected);
+
+            const searchInput = document.getElementById('modalSearchValue');
+            searchInput.oninput = function() {
+                const query = this.value.toLowerCase();
+                const items = document.querySelectorAll('.modal-checkbox-item');
+                items.forEach(item => {
+                    const text = item.getAttribute('data-value').toLowerCase();
+                    if (text.includes(query)) {
+                        item.style.display = '';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+            };
+
+            document.getElementById('columnFilterModal').classList.remove('hidden');
+        }
+
+        function renderModalCheckboxes(allVals, selectedVals) {
+            const container = document.getElementById('modalCheckboxList');
+            container.innerHTML = '';
+            if (allVals.length === 0) {
+                container.innerHTML = `<p class="text-xs text-gray-400 text-center py-4">No hay valores disponibles</p>`;
+                return;
+            }
+
+            allVals.forEach(val => {
+                const isChecked = selectedVals.includes(val);
+                const div = document.createElement('div');
+                div.className = "modal-checkbox-item flex items-center space-x-2 p-1 hover:bg-gray-50 rounded cursor-pointer";
+                div.setAttribute('data-value', val);
+                div.innerHTML = `
+                    <input type="checkbox" value="${val}" ${isChecked ? 'checked' : ''} class="modal-cb rounded border-gray-300 text-estafeta-red focus:ring-red-500 h-4 w-4">
+                    <span class="text-xs text-gray-700 select-none">${val}</span>
+                `;
+                div.addEventListener('click', (e) => {
+                    if (e.target.tagName !== 'INPUT') {
+                        const cb = div.querySelector('input');
+                        cb.checked = !cb.checked;
+                    }
+                });
+                container.appendChild(div);
+            });
+        }
+
+        function selectAllModalValues(select) {
+            const checkboxes = document.querySelectorAll('.modal-cb');
+            checkboxes.forEach(cb => {
+                const item = cb.closest('.modal-checkbox-item');
+                if (item.style.display !== 'none') {
+                    cb.checked = select;
+                }
+            });
+        }
+
+        function closeColumnFilterModal() {
+            document.getElementById('columnFilterModal').classList.add('hidden');
+        }
+
+        function applyColumnFilterModal() {
+            const checkboxes = document.querySelectorAll('.modal-cb');
+            const selected = [];
+            const all = [];
+            checkboxes.forEach(cb => {
+                all.push(cb.value);
+                if (cb.checked) {
+                    selected.push(cb.value);
+                }
+            });
+
+            if (selected.length === all.length) {
+                activeColumnFilters[currentFilterColKey] = [];
+            } else {
+                activeColumnFilters[currentFilterColKey] = selected;
+            }
+
+            closeColumnFilterModal();
+            currentPage = 1;
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const rutaVal = document.getElementById('filterRuta').value;
+            const estadoVal = document.getElementById('filterEstado').value;
+            const tipoVal = document.getElementById('filterTipo').value;
+            const searchVal = document.getElementById('searchInput').value.toLowerCase();
+
+            filteredData = globalData.filter(item => {
+                const itemFecha = item.Fecha ? String(item.Fecha).substring(0,10) : '';
+
+                const matchFecha = !selectedFilterDate || itemFecha === selectedFilterDate;
+                const matchRuta = !rutaVal || item.Ruta === rutaVal;
+                const matchEstado = !estadoVal || item.Estado === estadoVal;
+                const matchTipo = !tipoVal || item.Tipo === tipoVal;
+
+                const matchColFecha = activeColumnFilters.Fecha.length === 0 || activeColumnFilters.Fecha.includes(itemFecha);
+                const matchColRuta = activeColumnFilters.Ruta.length === 0 || activeColumnFilters.Ruta.includes(String(item.Ruta));
+                const matchColCP = activeColumnFilters.CP.length === 0 || activeColumnFilters.CP.includes(String(item.CP));
+                const matchColEstado = activeColumnFilters.Estado.length === 0 || activeColumnFilters.Estado.includes(String(item.Estado));
+
+                const matchSearch = !searchVal || Object.values(item).some(val => 
+                    String(val).toLowerCase().includes(searchVal)
+                );
+
+                return matchFecha && matchRuta && matchEstado && matchTipo && matchColFecha && matchColRuta && matchColCP && matchColEstado && matchSearch;
+            });
+
+            updateFloatingFilterButton();
+            updateDashboard();
+        }
+
+        function updateFloatingFilterButton() {
+            const rutaVal = document.getElementById('filterRuta').value;
+            const estadoVal = document.getElementById('filterEstado').value;
+            const tipoVal = document.getElementById('filterTipo').value;
+            const searchVal = document.getElementById('searchInput').value.trim();
+
+            let activeCount = 0;
+            if (selectedFilterDate) activeCount++;
+            if (rutaVal) activeCount++;
+            if (estadoVal) activeCount++;
+            if (tipoVal) activeCount++;
+            if (searchVal) activeCount++;
+
+            Object.keys(activeColumnFilters).forEach(key => {
+                if (activeColumnFilters[key].length > 0) {
+                    activeCount++;
+                }
+            });
+
+            const container = document.getElementById('floatingFilterBtnContainer');
+            const textSpan = document.getElementById('floatingBtnText');
+
+            if (activeCount > 0) {
+                textSpan.textContent = `Limpiar Filtros (${activeCount})`;
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
+        function resetFilters() {
+            selectedFilterDate = null;
+            document.getElementById('selectedDateText').textContent = "Todas las fechas";
+            document.getElementById('filterRuta').value = "";
+            document.getElementById('filterEstado').value = "";
+            document.getElementById('filterTipo').value = "";
+            document.getElementById('searchInput').value = "";
+            activeColumnFilters = { Fecha: [], Ruta: [], CP: [], Estado: [] };
+            filteredData = [...globalData];
+            currentPage = 1;
+            renderCalendar();
+            updateFloatingFilterButton();
+            updateDashboard();
+        }
+
+        function updateDashboard() {
+            updateKPIs();
+            updateTablesAndCharts();
+        }
+
+        function updateKPIs() {
+            const totalOrdenes = filteredData.length;
+            const totalCantidad = filteredData.reduce((acc, curr) => acc + Number(curr.Cantidad || 0), 0);
+            const enrutados = filteredData.filter(d => String(d.Estado).toUpperCase() === 'ENRUTADO').length;
+            const excepcionados = filteredData.filter(d => String(d.Estado).toUpperCase() === 'EXCEPCIONADO').length;
+            const recolectados = filteredData.filter(d => String(d.Estado).toUpperCase() === 'RECOLECTADO').length;
+
+            document.getElementById('kpiTotalOrdenes').textContent = totalOrdenes.toLocaleString();
+            document.getElementById('kpiTotalCantidad').textContent = totalCantidad.toLocaleString();
+            document.getElementById('kpiEnrutados').textContent = enrutados.toLocaleString();
+            document.getElementById('kpiExcepcionados').textContent = excepcionados.toLocaleString();
+            document.getElementById('kpiRecolectados').textContent = recolectados.toLocaleString();
+
+            document.getElementById('recordCount').textContent = `${totalOrdenes} registros`;
+            document.getElementById('tableCountBadge').textContent = `${totalOrdenes} filas`;
+        }
+
+        function updateTablesAndCharts() {
+            updateEstadoTable();
+            updateRutaTable();
+            updateTipoChart();
+            updateMainTable();
+        }
+
+        function updateEstadoTable() {
+            const counts = {};
+            filteredData.forEach(d => {
+                const est = d.Estado || 'DESCONOCIDO';
+                counts[est] = (counts[est] || 0) + 1;
+            });
+            const tbody = document.getElementById('tableEstadoBody');
+            tbody.innerHTML = '';
+            const keys = Object.keys(counts);
+            if (keys.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="2" class="p-4 text-center text-gray-400">Sin datos</td></tr>`;
+                return;
+            }
+            keys.forEach(est => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b hover:bg-gray-50";
+                tr.innerHTML = `<td class="p-2 font-medium">${est}</td><td class="p-2 text-right font-bold text-estafeta-red">${counts[est].toLocaleString()}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateRutaTable() {
+            const counts = {};
+            filteredData.forEach(d => {
+                const r = d.Ruta || 'SIN RUTA';
+                counts[r] = (counts[r] || 0) + 1;
+            });
+
+            const cardRuta = document.getElementById('cardRuta');
+            const isExpanded = cardRuta && cardRuta.classList.contains('fixed');
+            const containerScroll = document.getElementById('containerRutaScroll');
+            const table = containerScroll.querySelector('table');
+            const keys = Object.keys(counts);
+
+            if (keys.length === 0) {
+                table.innerHTML = `
+                    <thead class="bg-gray-50 text-gray-600 uppercase sticky top-0">
+                        <tr>
+                            <th class="p-2">Ruta</th>
+                            <th class="p-2 text-right">Cantidad (Órdenes)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableRutaBody">
+                        <tr><td colspan="2" class="p-4 text-center text-gray-400">Sin datos</td></tr>
+                    </tbody>
+                `;
+                return;
+            }
+
+            if (isExpanded) {
+                // Modo expandido: 2 bloques de columnas (4 columnas totales en la tabla)
+                let theadHTML = `
+                    <thead class="bg-gray-50 text-gray-600 uppercase sticky top-0 z-10">
+                        <tr>
+                            <th class="p-2">Ruta</th>
+                            <th class="p-2 text-right">Cantidad</th>
+                            <th class="p-2 border-l border-gray-200">Ruta</th>
+                            <th class="p-2 text-right">Cantidad</th>
+                        </tr>
+                    </thead>
+                `;
+                let tbodyHTML = `<tbody id="tableRutaBody">`;
+                const half = Math.ceil(keys.length / 2);
+                for (let i = 0; i < half; i++) {
+                    const r1 = keys[i];
+                    const c1 = counts[r1];
+                    const r2 = keys[i + half] !== undefined ? keys[i + half] : '';
+                    const c2 = r2 !== '' ? counts[r2] : '';
+
+                    tbodyHTML += `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="p-2 font-medium">${r1}</td>
+                            <td class="p-2 text-right font-bold text-estafeta-red">${c1.toLocaleString()}</td>
+                            <td class="p-2 font-medium border-l border-gray-100">${r2}</td>
+                            <td class="p-2 text-right font-bold text-estafeta-red">${c2 !== '' ? c2.toLocaleString() : ''}</td>
+                        </tr>
+                    `;
+                }
+                tbodyHTML += `</tbody>`;
+                table.innerHTML = theadHTML + tbodyHTML;
+            } else {
+                // Modo normal: 1 columna de datos (2 columnas en la tabla)
+                let theadHTML = `
+                    <thead class="bg-gray-50 text-gray-600 uppercase sticky top-0">
+                        <tr>
+                            <th class="p-2">Ruta</th>
+                            <th class="p-2 text-right">Cantidad (Órdenes)</th>
+                        </tr>
+                    </thead>
+                `;
+                let tbodyHTML = `<tbody id="tableRutaBody">`;
+                keys.forEach(r => {
+                    tbodyHTML += `
+                        <tr class="border-b hover:bg-gray-50">
+                            <td class="p-2 font-medium">${r}</td>
+                            <td class="p-2 text-right font-bold text-estafeta-red">${counts[r].toLocaleString()}</td>
+                        </tr>
+                    `;
+                });
+                tbodyHTML += `</tbody>`;
+                table.innerHTML = theadHTML + tbodyHTML;
+            }
+        }
+
+        function updateTipoChart() {
+            const tipoCounts = {};
+            filteredData.forEach(d => {
+                const t = d.Tipo || 'OTRO';
+                tipoCounts[t] = (tipoCounts[t] || 0) + 1;
+            });
+            const tipoLabels = Object.keys(tipoCounts);
+            const tipoDataValues = Object.values(tipoCounts);
+
+            if (chartTipo) chartTipo.destroy();
+            const ctxTipo = document.getElementById('chartTipo').getContext('2d');
+            chartTipo = new Chart(ctxTipo, {
+                type: 'pie',
+                data: {
+                    labels: tipoLabels,
+                    datasets: [{
+                        data: tipoDataValues,
+                        backgroundColor: ['#1f2937', '#DA291C', '#3b82f6', '#10b981'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } },
+                        datalabels: {
+                            color: '#fff',
+                            font: { weight: 'bold', size: 11 },
+                            formatter: (value) => value > 0 ? value : ''
+                        }
+                    },
+                    onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            document.getElementById('filterTipo').value = tipoLabels[elements[0].index];
+                            currentPage = 1;
+                            applyFilters();
+                        }
+                    }
+                },
+                plugins: [ChartDataLabels]
+            });
+        }
+
+        function updateMainTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            const totalRecords = filteredData.length;
+            const paginationContainer = document.getElementById('paginationContainer');
+
+            if (totalRecords === 0) {
+                tbody.innerHTML = `<tr><td colspan="11" class="p-6 text-center text-gray-400">No se encontraron registros.</td></tr>`;
+                paginationContainer.classList.add('hidden');
+                return;
+            }
+
+            let paginatedRows = [];
+            const totalPages = Math.ceil(totalRecords / rowsPerPage);
+
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            if (totalRecords <= 10) {
+                paginatedRows = [...filteredData];
+                paginationContainer.classList.add('hidden');
+            } else {
+                paginationContainer.classList.remove('hidden');
+                const startIdx = (currentPage - 1) * rowsPerPage;
+                const endIdx = startIdx + rowsPerPage;
+                paginatedRows = filteredData.slice(startIdx, endIdx);
+            }
+
+            const fragment = document.createDocumentFragment();
+            paginatedRows.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 transition";
+                
+                let badgeClass = "bg-gray-100 text-gray-700";
+                const est = String(item.Estado || '').toUpperCase();
+                if (est === 'ENRUTADO') badgeClass = "bg-yellow-100 text-yellow-800";
+                else if (est === 'EXCEPCIONADO') badgeClass = "bg-red-100 text-red-800";
+                else if (est === 'RECOLECTADO') badgeClass = "bg-green-100 text-green-800";
+
+                tr.innerHTML = `
+                    <td class="p-3 font-mono font-semibold text-estafeta-red">${item.OR || ''}</td>
+                    <td class="p-3">${item.Fecha ? String(item.Fecha).substring(0,10) : ''}</td>
+                    <td class="p-3 font-semibold">${item.Ruta || ''}</td>
+                    <td class="p-3">${item.CP || ''}</td>
+                    <td class="p-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${badgeClass}">${item.Estado || ''}</span></td>
+                    <td class="p-3 truncate max-w-xs" title="${item.Dirección || ''}">${item.Dirección || ''}</td>
+                    <td class="p-3">${item["Número de Cliente"] || ''}</td>
+                    <td class="p-3 truncate max-w-xs" title="${item["Razón Social"] || ''}">${item["Razón Social"] || ''}</td>
+                    <td class="p-3 text-center font-bold">${item.Cantidad || 1}</td>
+                    <td class="p-3">${item.Tipo || ''}</td>
+                    <td class="p-3 text-red-600 font-medium">${item.Excepción || '-'}</td>
+                `;
+                fragment.appendChild(tr);
+            });
+
+            if (totalRecords <= 10 && paginatedRows.length < 10) {
+                const emptyRowsNeeded = 10 - paginatedRows.length;
+                for (let i = 0; i < emptyRowsNeeded; i++) {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td class="p-3">&nbsp;</td>
+                        <td class="p-3"></td>
+                        <td class="p-3"></td>
+                        <td class="p-3"></td>
+                        <td class="p-3"></td>
+                        <td class="p-3"></td>
+                        <td class="p-3"></td>
+                        <td class="p-3"></td>
+                        <td class="p-3"></td>
+                        <td class="p-3"></td>
+                        <td class="p-3"></td>
+                    `;
+                    fragment.appendChild(tr);
+                }
+            }
+
+            tbody.appendChild(fragment);
+
+            if (totalRecords > 10) {
+                updatePaginationControls(totalRecords, totalPages);
+            }
+        }
+
+        function updatePaginationControls(totalRecords, totalPages) {
+            const startRecord = (currentPage - 1) * rowsPerPage + 1;
+            const endRecord = Math.min(currentPage * rowsPerPage, totalRecords);
+            
+            document.getElementById('paginationInfo').textContent = `Mostrando ${startRecord} - ${endRecord} de ${totalRecords} registros`;
+            
+            document.getElementById('prevPageBtn').disabled = currentPage === 1;
+            document.getElementById('nextPageBtn').disabled = currentPage === totalPages;
+
+            const pageNumbersContainer = document.getElementById('pageNumbersContainer');
+            pageNumbersContainer.innerHTML = '';
+
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+                    const btn = document.createElement('button');
+                    btn.className = `px-2.5 py-1 rounded-lg text-xs font-bold transition ${i === currentPage ? 'bg-estafeta-red text-white shadow' : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-100'}`;
+                    btn.textContent = i;
+                    btn.onclick = () => {
+                        currentPage = i;
+                        updateMainTable();
+                    };
+                    pageNumbersContainer.appendChild(btn);
+                } else if (i === currentPage - 2 || i === currentPage + 2) {
+                    const span = document.createElement('span');
+                    span.className = "text-xs text-gray-400 px-1";
+                    span.textContent = '...';
+                    pageNumbersContainer.appendChild(span);
+                }
+            }
+        }
+
+        function changePage(direction) {
+            currentPage += direction;
+            updateMainTable();
+        }
+
+        function sortTable(columnIndex) {
+            const keysMapping = ['OR', 'Fecha', 'Ruta', 'CP', 'Estado', 'Dirección', 'Número de Cliente', 'Razón Social', 'Cantidad', 'Tipo', 'Excepción'];
+            const key = keysMapping[columnIndex];
+            if (!key) return;
+
+            sortDirections[columnIndex] = !sortDirections[columnIndex];
+            const asc = sortDirections[columnIndex];
+
+            filteredData.sort((a, b) => {
+                let valA = a[key] !== null && a[key] !== undefined ? a[key] : '';
+                let valB = b[key] !== null && b[key] !== undefined ? b[key] : '';
+
+                if (!isNaN(valA) && !isNaN(valB) && valA !== '' && valB !== '') {
+                    valA = Number(valA);
+                    valB = Number(valB);
+                } else {
+                    valA = String(valA).toLowerCase();
+                    valB = String(valB).toLowerCase();
+                }
+
+                if (valA < valB) return asc ? -1 : 1;
+                if (valA > valB) return asc ? 1 : -1;
+                return 0;
+            });
+
+            currentPage = 1;
+            updateMainTable();
+        }
+
+        function exportToExcel() {
+            if (filteredData.length === 0) {
+                alert("No hay datos para exportar.");
+                return;
+            }
+            const worksheet = XLSX.utils.json_to_sheet(filteredData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Reporte_Estafeta");
+            XLSX.writeFile(workbook, "Dashboard_Estafeta_Filtrado.xlsx");
+        }
+    </script>
+</body>
+</html>

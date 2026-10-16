@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Afectación Mensual</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- SheetJS completo con soporte para xls, xlsx, xlsb, csv, etc. -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #F4F6F9;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #D32F2F;
+        }
+        /* Color de banner corporativo solicitado */
+        .top-bar { 
+            display: flex; 
+            justify-content: flex-end; 
+            align-items: center;
+            background: #DA291C; /* Rojo Estafeta */
+            padding: 10px 20px;
+        }
+        /* Estilo para secciones en pantalla completa */
+        .fullscreen-active {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 9999 !important;
+            margin: 0 !important;
+            border-radius: 0 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            background-color: #ffffff !important;
+            overflow-y: auto !important;
+            padding: 24px !important;
+            box-shadow: none !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-gray-800 flex flex-col relative">
+
+    <!-- Header Estafeta con clase top-bar aplicada -->
+    <header class="top-bar text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto w-full px-4 py-3 flex flex-col md:flex-row justify-between items-center">
+            <div class="flex items-center space-x-3 mb-3 md:mb-0">
+                <div class="bg-white text-[#DA291C] font-black text-2xl px-3 py-1 rounded-lg shadow uppercase tracking-wider">
+                    ESTAFETA
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Afectación Mensual</h1>
+                    <p class="text-xs text-red-100">Control de Incumplimientos, Garantías y Retrasos</p>
+                </div>
+            </div>
+
+            <!-- Contenedor Derecho del Header (Carga / Info de Archivo) -->
+            <div class="flex items-center space-x-3">
+                <!-- Sección de Carga Compacta en el Header (Visible inicialmente) -->
+                <div id="upload-section-header" class="flex items-center space-x-2 bg-white/10 px-3 py-1.5 rounded-xl border border-white/20">
+                    <span class="text-xs text-red-100 hidden sm:inline">Cargar Excel/CSV:</span>
+                    <div class="relative inline-block">
+                        <input type="file" id="excel-file-input" accept="*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <button class="bg-white text-[#DA291C] hover:bg-red-50 font-semibold text-xs px-3 py-2 rounded-lg shadow transition duration-200 flex items-center space-x-1.5 cursor-pointer">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <span>Seleccionar o Arrastrar Archivo</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Info del Archivo Cargado (Oculto inicialmente) -->
+                <div id="file-info" class="hidden flex items-center bg-black/20 px-4 py-2 rounded-lg text-sm">
+                    <i class="fa-solid fa-file-excel text-green-400 mr-2 text-lg"></i>
+                    <span id="file-name" class="font-medium mr-3 truncate max-w-xs">archivo.xlsx</span>
+                    <button onclick="resetData()" class="bg-white/20 hover:bg-white/30 text-white text-xs px-2 py-1 rounded transition cursor-pointer">
+                        <i class="fa-solid fa-rotate-right mr-1"></i> Cambiar Archivo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
+
+        <!-- Contenido del Dashboard -->
+        <div id="dashboard-content" class="hidden space-y-6">
+
+            <!-- Barra de Filtros -->
+            <section class="bg-white rounded-xl shadow-md p-5 border-t-4 border-[#DA291C]">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 pb-3 border-b border-gray-100">
+                    <div class="flex items-center space-x-2">
+                        <i class="fa-solid fa-filter text-[#DA291C]"></i>
+                        <h3 class="font-bold text-gray-800 text-lg">Filtros Interactivos</h3>
+                        <span id="active-filters-badge" class="bg-red-100 text-[#DA291C] text-xs font-semibold px-2.5 py-0.5 rounded-full hidden">0 filtros activos</span>
+                    </div>
+                    <button onclick="clearAllFilters()" class="text-sm text-red-600 hover:text-red-800 font-medium flex items-center space-x-1 mt-2 md:mt-0 cursor-pointer">
+                        <i class="fa-solid fa-filter-circle-xmark"></i>
+                        <span>Limpiar todos los filtros</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <!-- Filtro Columna A (Resumen) -->
+                    <div>
+                        <label id="filter-colA-label" class="block text-xs font-bold text-gray-600 uppercase mb-1">
+                            <i class="fa-solid fa-list-check mr-1 text-[#DA291C]"></i> Resumen
+                        </label>
+                        <select id="filter-colA" onchange="applyFilters()" class="w-full bg-gray-50 border border-gray-300 text-gray-800 text-sm rounded-lg focus:ring-red-500 focus:border-red-500 p-2.5">
+                            <option value="">Todos</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtro Plaza -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1">
+                            <i class="fa-solid fa-building mr-1 text-[#DA291C]"></i> Plaza
+                        </label>
+                        <select id="filter-plaza" onchange="applyFilters()" class="w-full bg-gray-50 border border-gray-300 text-gray-800 text-sm rounded-lg focus:ring-red-500 focus:border-red-500 p-2.5">
+                            <option value="">Todas las Plazas</option>
+                        </select>
+                    </div>
+
+                    <!-- Filtro Fecha (Desplegable Múltiple) -->
+                    <div class="relative">
+                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1">
+                            <i class="fa-solid fa-calendar-days mr-1 text-[#DA291C]"></i> Fecha
+                        </label>
+                        <div class="relative">
+                            <button type="button" onclick="toggleDateDropdown()" id="date-dropdown-btn" class="w-full bg-gray-50 border border-gray-300 text-gray-800 text-sm rounded-lg p-2.5 text-left flex justify-between items-center focus:ring-red-500 focus:border-red-500 cursor-pointer">
+                                <span id="date-dropdown-text">Todas las fechas</span>
+                                <i class="fa-solid fa-chevron-down text-xs text-gray-500"></i>
+                            </button>
+                            <!-- Contenedor desplegable oculto inicialmente -->
+                            <div id="date-dropdown-menu" class="hidden absolute left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl z-50 p-3 max-h-60 overflow-y-auto custom-scrollbar">
+                                <div class="flex justify-between items-center mb-2 pb-2 border-b text-xs">
+                                    <span class="font-bold text-gray-700">Seleccionar fechas</span>
+                                    <button type="button" onclick="selectAllDates(true)" class="text-red-600 hover:underline cursor-pointer">Todas</button>
+                                    <button type="button" onclick="selectAllDates(false)" class="text-gray-500 hover:underline cursor-pointer">Ninguna</button>
+                                </div>
+                                <div id="filter-fecha" class="space-y-1.5 text-xs text-gray-700">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Búsqueda Rápida -->
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase mb-1">
+                            <i class="fa-solid fa-magnifying-glass mr-1 text-[#DA291C]"></i> Búsqueda Rápida
+                        </label>
+                        <input type="text" id="filter-search" oninput="applyFilters()" placeholder="Ej. BARRADAS..." class="w-full bg-gray-50 border border-gray-300 text-gray-800 text-sm rounded-lg focus:ring-red-500 focus:border-red-500 p-2.5">
+                    </div>
+                </div>
+            </section>
+
+            <!-- KPIs -->
+            <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div class="bg-white rounded-xl shadow-md p-5 border-l-4 border-red-600 flex items-center justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:bg-red-50/20 cursor-pointer">
+                    <div>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Paquetes Afectados</p>
+                        <h4 id="kpi-total" class="text-2xl font-black text-gray-800 mt-1">0</h4>
+                        <span class="text-xs text-green-600 font-medium"><i class="fa-solid fa-arrow-up"></i> Filtrados en vista</span>
+                    </div>
+                    <div class="w-14 h-14 bg-gradient-to-br from-red-500 to-[#DA291C] text-white rounded-2xl flex items-center justify-center text-2xl shadow-md shadow-red-500/30 transform transition duration-300 hover:scale-110">
+                        <i class="fa-solid fa-box-open"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-md p-5 border-l-4 border-amber-500 flex items-center justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:bg-amber-50/20 cursor-pointer">
+                    <div>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Plazas Afectadas</p>
+                        <h4 id="kpi-plazas" class="text-2xl font-black text-gray-800 mt-1">0</h4>
+                        <span class="text-xs text-amber-600 font-medium">Plazas únicas</span>
+                    </div>
+                    <div class="w-14 h-14 bg-gradient-to-br from-amber-400 to-amber-600 text-white rounded-2xl flex items-center justify-center text-2xl shadow-md shadow-amber-500/30 transform transition duration-300 hover:scale-110">
+                        <i class="fa-solid fa-map-location-dot"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-md p-5 border-l-4 border-[#DA291C] flex items-center justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:bg-red-50/20 cursor-pointer">
+                    <div>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Fechas Compromiso</p>
+                        <h4 id="kpi-fechas" class="text-2xl font-black text-gray-800 mt-1">0</h4>
+                        <span class="text-xs text-gray-500 font-medium">Días analizados</span>
+                    </div>
+                    <div class="w-14 h-14 bg-gradient-to-br from-red-700 to-[#DA291C] text-white rounded-2xl flex items-center justify-center text-2xl shadow-md shadow-red-900/30 transform transition duration-300 hover:scale-110">
+                        <i class="fa-solid fa-calendar-check"></i>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-md p-5 border-l-4 border-blue-600 flex items-center justify-between transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:bg-blue-50/20 cursor-pointer">
+                    <div>
+                        <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Promedio Retraso</p>
+                        <h4 id="kpi-retraso" class="text-2xl font-black text-gray-800 mt-1">0 Días</h4>
+                        <span class="text-xs text-blue-600 font-medium">Retraso entrega</span>
+                    </div>
+                    <div class="w-14 h-14 bg-gradient-to-br from-blue-400 to-blue-600 text-white rounded-2xl flex items-center justify-center text-2xl shadow-md shadow-blue-500/30 transform transition duration-300 hover:scale-110">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tablas de Porcentajes y Buscador Columna A -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Tabla 1: Porcentaje por Detalle de Afectación -->
+                <section id="section-table-percentages" class="bg-white rounded-xl shadow-md overflow-hidden flex flex-col justify-between transition-all duration-300">
+                    <div class="p-5 border-b border-gray-100 flex justify-between items-center">
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-base">Porcentaje por Detalle de Afectación</h3>
+                            <p class="text-xs text-gray-400">Distribución porcentual</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="bg-red-50 text-[#DA291C] text-xs px-2.5 py-1 rounded-md font-semibold hidden sm:inline-block">
+                                <i class="fa-solid fa-percent mr-1"></i> % Afectación
+                            </div>
+                            <button onclick="toggleFullscreen('section-table-percentages', this)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1 cursor-pointer" title="Expandir / Contraer Pantalla Completa">
+                                <i class="fa-solid fa-expand"></i>
+                                <span class="hidden sm:inline">Expandir</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar max-h-[320px] p-2 flex-grow">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-gray-100 text-gray-700 text-xs uppercase font-bold sticky top-0 z-10">
+                                <tr>
+                                    <th id="table1-colA-name" class="p-3 border-b">Detalle de Afectación (Col. A)</th>
+                                    <th class="p-3 border-b text-right">Cantidad</th>
+                                    <th class="p-3 border-b text-right">Porcentaje</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-percentages-body" class="text-xs text-gray-700">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 text-right">
+                        <span id="total-percentage-count">Total registros: 0</span>
+                    </div>
+                </section>
+
+                <!-- Tabla 2: Filtro de Resumen TAX -->
+                <section id="section-table-search-tax" class="bg-white rounded-xl shadow-md overflow-hidden flex flex-col justify-between transition-all duration-300">
+                    <div class="p-5 border-b border-gray-100">
+                        <div class="flex justify-between items-center mb-3">
+                            <div>
+                                <h3 class="font-bold text-gray-800 text-base">Filtro de Resumen TAX</h3>
+                                <p class="text-xs text-gray-400">Busca y filtra rápidamente los registros según su afectación</p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="bg-red-50 text-[#DA291C] text-xs px-2.5 py-1 rounded-md font-semibold hidden sm:inline-block">
+                                    <i class="fa-solid fa-magnifying-glass mr-1"></i> Buscador Col. A
+                                </div>
+                                <button onclick="toggleFullscreen('section-table-search-tax', this)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1 cursor-pointer" title="Expandir / Contraer Pantalla Completa">
+                                    <i class="fa-solid fa-expand"></i>
+                                    <span class="hidden sm:inline">Expandir</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                                <i class="fa-solid fa-search"></i>
+                            </span>
+                            <input type="text" id="search-colA-input" oninput="filterTableColA()" placeholder="Escribe para filtrar la Columna A..." class="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-300 text-sm rounded-lg focus:ring-red-500 focus:border-red-500">
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar max-h-[260px] p-2 flex-grow">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-gray-100 text-gray-700 text-xs uppercase font-bold sticky top-0 z-10">
+                                <tr>
+                                    <th id="table2-colA-name" class="p-3 border-b">Columna A</th>
+                                    <th id="table2-colC-name" class="p-3 border-b">Columna C</th>
+                                    <th class="p-3 border-b">Plaza</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-search-colA-body" class="text-xs text-gray-700">
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="p-3 bg-gray-50 border-t border-gray-200 text-xs text-gray-500 flex justify-between">
+                        <span id="search-colA-count">Mostrando 0 registros</span>
+                        <button onclick="document.getElementById('search-colA-input').value=''; filterTableColA();" class="text-red-600 hover:underline font-medium cursor-pointer">Limpiar búsqueda</button>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Gráficos -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Gráfica Días -->
+                <section id="section-chart-days" class="bg-white rounded-xl shadow-md p-5 flex flex-col justify-between transition-all duration-300">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-base">Paquetes Afectados por Día (Fecha Compromiso)</h3>
+                            <p class="text-xs text-gray-400">Haz clic en una barra para filtrar por fecha</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="bg-red-50 text-[#DA291C] text-xs px-2.5 py-1 rounded-md font-semibold hidden sm:inline-block">
+                                <i class="fa-solid fa-chart-line mr-1"></i> Tendencia Diaria
+                            </div>
+                            <button onclick="toggleFullscreen('section-chart-days', this)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1 cursor-pointer" title="Expandir / Contraer Pantalla Completa">
+                                <i class="fa-solid fa-expand"></i>
+                                <span class="hidden sm:inline">Expandir</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="relative h-72 w-full flex-grow">
+                        <canvas id="chartDíasPaquetes"></canvas>
+                    </div>
+                </section>
+
+                <!-- Gráfica Top Plazas -->
+                <section id="section-chart-plazas" class="bg-white rounded-xl shadow-md p-5 flex flex-col justify-between transition-all duration-300">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 class="font-bold text-gray-800 text-base">Top Plazas Afectadas</h3>
+                            <p class="text-xs text-gray-400">Haz clic en una sección para filtrar la plaza</p>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="bg-red-50 text-[#DA291C] text-xs px-2.5 py-1 rounded-md font-semibold hidden sm:inline-block">
+                                <i class="fa-solid fa-chart-pie mr-1"></i> Participación
+                            </div>
+                            <button onclick="toggleFullscreen('section-chart-plazas', this)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-2.5 py-1.5 rounded-lg shadow-sm transition flex items-center space-x-1 cursor-pointer" title="Expandir / Contraer Pantalla Completa">
+                                <i class="fa-solid fa-expand"></i>
+                                <span class="hidden sm:inline">Expandir</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="relative h-72 w-full flex-grow">
+                        <canvas id="chartPlazas"></canvas>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Tabla Detalle Principal -->
+            <section id="section-main-table" class="bg-white rounded-xl shadow-md overflow-hidden transition-all duration-300 flex flex-col">
+                <div class="p-5 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                    <div>
+                        <h3 class="font-bold text-gray-800 text-base">Detalle de Incumplimientos</h3>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow transition flex items-center space-x-1.5 cursor-pointer">
+                            <i class="fa-solid fa-file-excel"></i>
+                            <span>Exportar Vista CSV</span>
+                        </button>
+                        <button onclick="toggleFullscreen('section-main-table', this)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs px-3 py-2 rounded-lg shadow-sm transition flex items-center space-x-1.5 cursor-pointer" title="Expandir / Contraer Pantalla Completa">
+                            <i class="fa-solid fa-expand"></i>
+                            <span>Expandir</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto custom-scrollbar flex-grow">
+                    <table id="main-table" class="w-full text-left border-collapse">
+                        <thead class="bg-gray-100 text-gray-700 text-xs uppercase font-bold sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th class="p-3 cursor-pointer select-none hover:bg-gray-200 transition" onclick="sortTable(0)">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center space-x-1.5">
+                                            <span id="colA-header-title">Columna A</span>
+                                            <div class="relative inline-block" onclick="event.stopPropagation();">
+                                                <button type="button" onclick="openFilterModal('colA', event)" class="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-100 transition cursor-pointer" title="Filtrar por Resumen">
+                                                    <i class="fa-solid fa-filter text-xs"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <span class="text-gray-400 ml-1"><i class="fa-solid fa-sort text-[10px]"></i></span>
+                                    </div>
+                                </th>
+
+                                <th class="p-3 cursor-pointer select-none hover:bg-gray-200 transition" onclick="sortTable(1)">
+                                    <div class="flex items-center justify-between">
+                                        <span id="colC-header-title">Columna C</span>
+                                        <span class="text-gray-400 ml-1"><i class="fa-solid fa-sort text-[10px]"></i></span>
+                                    </div>
+                                </th>
+                                <th class="p-3 cursor-pointer select-none hover:bg-gray-200 transition" onclick="sortTable(2)">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center space-x-1.5">
+                                            <span>Plaza</span>
+                                            <div class="relative inline-block" onclick="event.stopPropagation();">
+                                                <button type="button" onclick="openFilterModal('plaza', event)" class="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-100 transition cursor-pointer" title="Filtrar por Plaza">
+                                                    <i class="fa-solid fa-filter text-xs"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <span class="text-gray-400 ml-1"><i class="fa-solid fa-sort text-[10px]"></i></span>
+                                    </div>
+                                </th>
+                                <th class="p-3 cursor-pointer select-none hover:bg-gray-200 transition" onclick="sortTable(3)">
+                                    <div class="flex items-center justify-between">
+                                        <span>Nombre Cliente</span>
+                                        <span class="text-gray-400 ml-1"><i class="fa-solid fa-sort text-[10px]"></i></span>
+                                    </div>
+                                </th>
+                                <th class="p-3 text-center cursor-pointer select-none hover:bg-gray-200 transition" onclick="sortTable(4)">
+                                    <div class="flex items-center justify-center space-x-1">
+                                        <span>Fecha Compromiso</span>
+                                        <span class="text-gray-400 ml-1"><i class="fa-solid fa-sort text-[10px]"></i></span>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body" class="text-xs text-gray-700">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="p-4 bg-gray-50 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center text-xs text-gray-500 gap-3">
+                    <span id="table-row-count">Mostrando 0 registros</span>
+                    <div id="table-pagination-controls" class="flex items-center space-x-1"></div>
+                    <div class="flex items-center space-x-2">
+                        <span class="inline-block w-3 h-3 bg-[#DA291C] rounded-full"></span> Estafeta Red
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Pantalla de Bienvenida / Carga inicial vacía -->
+        <div id="welcome-card" class="text-center max-w-2xl mx-auto my-16 space-y-4">
+        </div>
+
+    </main>
+
+    <!-- VENTANA MODAL ESTILO EXCEL PARA FILTROS DE EMBUDO -->
+    <div id="column-filter-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-[#B71C1C] to-[#DA291C] text-white px-5 py-3.5 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-filter text-sm"></i>
+                    <h3 id="modal-filter-title" class="font-bold text-sm tracking-wide">Filtrar Columna</h3>
+                </div>
+                <button type="button" onclick="closeFilterModal()" class="text-white/80 hover:text-white text-lg p-1 rounded-lg transition cursor-pointer">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-5 space-y-4">
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                        <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                    </span>
+                    <input type="text" id="modal-search-input" oninput="filterModalCheckboxes(this.value)" placeholder="Buscar valor..." class="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-300 text-xs rounded-lg focus:ring-red-500 focus:border-red-500">
+                </div>
+
+                <div class="flex justify-between items-center text-xs font-semibold text-gray-600 px-1">
+                    <span>Seleccionar valores:</span>
+                    <div class="space-x-3">
+                        <button type="button" onclick="setModalAllCheckboxes(true)" class="text-red-600 hover:text-red-800 hover:underline cursor-pointer">Todos</button>
+                        <span class="text-gray-300">|</span>
+                        <button type="button" onclick="setModalAllCheckboxes(false)" class="text-gray-500 hover:text-gray-700 hover:underline cursor-pointer">Ninguno</button>
+                    </div>
+                </div>
+
+                <div id="modal-checkboxes-container" class="border border-gray-300 rounded-lg p-3 max-h-56 overflow-y-auto space-y-2 custom-scrollbar bg-white text-xs text-gray-700">
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="bg-gray-50 px-5 py-3 border-t border-gray-200 flex justify-end space-x-2">
+                <button type="button" onclick="closeFilterModal()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold text-xs rounded-lg transition cursor-pointer">
+                    Cancelar
+                </button>
+                <button type="button" onclick="applyModalFilter()" class="px-5 py-2 bg-[#DA291C] hover:bg-[#B71C1C] text-white font-semibold text-xs rounded-lg shadow transition cursor-pointer">
+                    Aplicar Filtro
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Botón flotante Limpiar Filtros -->
+    <button id="floating-clear-btn" onclick="clearAllFilters()" class="hidden fixed bottom-6 right-6 z-50 bg-gray-600 hover:bg-gray-700 text-white font-semibold px-5 py-3 rounded-full shadow-2xl transition duration-200 flex items-center space-x-2 cursor-pointer">
+        <i class="fa-solid fa-rotate-left"></i>
+        <span>Limpiar Filtros</span>
+    </button>
+
+    <!-- Footer Oculto -->
+    <footer class="bg-gray-800 text-gray-400 text-center py-6 mt-12 text-xs hidden">
+        <p>Dashboard Operativo Estafeta &bull; Procesamiento Local Seguro &bull; Compatible con todos los formatos Excel y CSV</p>
+    </footer>
+
+    <!-- Script de Lógica -->
+    <script>
+        // Verificación de Autenticación, Ofuscación de Rol, Expiración por Inactividad y Seguridad por Rol
+        window.addEventListener('DOMContentLoaded', () => {
+            // 1. Consultar el rol activo codificado guardado en el navegador
+            const encodedRole = localStorage.getItem('auth_role');
+            
+            if (!encodedRole) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            let rol = '';
+            try {
+                // Decodificamos el Base64 para evitar modificaciones simples desde la consola
+                const decoded = atob(encodedRole);
+                const parts = decoded.split('|');
+                if (parts.length >= 1) {
+                    rol = parts[0];
+                }
+            } catch (e) {
+                // Si el valor fue alterado y no es un Base64 válido, redirigir al login
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            if (!rol) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            // 2. Control de Inactividad (Cierre automático de sesión a los 30 minutos)
+            let inactivityTimer;
+            const maxInactivityMinutes = 30;
+
+            function resetInactivityTimer() {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(() => {
+                    alert("Su sesión ha expirado por inactividad.");
+                    localStorage.removeItem('auth_role');
+                    window.location.href = 'Panel de Control Operativo.html';
+                }, maxInactivityMinutes * 60 * 1000);
+            }
+
+            // Registrar eventos del usuario para reiniciar el contador de inactividad
+            ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
+                window.addEventListener(event, resetInactivityTimer);
+            });
+            resetInactivityTimer();
+
+            // 3. Aplicar restricciones de seguridad si NO es administrador
+            if (rol !== 'admin') {
+                console.log("Aplicando medidas de seguridad en este módulo.");
+                
+                // Bloquear Clic Secundario
+                document.addEventListener('contextmenu', e => e.preventDefault());
+
+                // Bloquear Selección de Texto
+                document.addEventListener('selectstart', e => e.preventDefault());
+
+                // Bloquear Copiar
+                document.addEventListener('copy', e => e.preventDefault());
+            } else {
+                console.warn("Modo Administrador: Módulo libre sin restricciones.");
+            }
+        });
+
+        // Función para alternar pantalla completa
+        function toggleFullscreen(sectionId, btnElement) {
+            const section = document.getElementById(sectionId);
+            const isFullscreen = section.classList.toggle('fullscreen-active');
+            const icon = btnElement.querySelector('i');
+            const spanText = btnElement.querySelector('span');
+
+            if (isFullscreen) {
+                if (icon) icon.className = "fa-solid fa-compress";
+                if (spanText) spanText.textContent = "Contraer";
+            } else {
+                if (icon) icon.className = "fa-solid fa-expand";
+                if (spanText) spanText.textContent = "Expandir";
+            }
+
+            // Redimensionar gráficos automáticamente si están presentes
+            setTimeout(() => {
+                window.dispatchEvent(new Event('resize'));
+            }, 100);
+        }
+
+        // Función de validación de encabezados
+        function validarArchivo(encabezados) {
+            if (!encabezados || encabezados.length === 0) return false;
+            const normalizados = encabezados.map(h => String(h).trim().toLowerCase());
+            return normalizados.includes("resumen") && normalizados.includes("origen - destino") && normalizados.includes("motivo incumplimiento");
+        }
+
+        let rawData = [];
+        let filteredData = [];
+        let chartDaysInstance = null;
+        let chartPlazasInstance = null;
+        let currentPage = 1;
+        const rowsPerPage = 10;
+
+        let activeModalColumn = null;
+        let columnActiveFilters = {
+            colA: null,
+            plaza: null
+        };
+
+        let currentSortColumn = null;
+        let currentSortDirection = 'asc';
+
+        const fileInput = document.getElementById('excel-file-input');
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        window.addEventListener('dragover', (e) => e.preventDefault());
+        window.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            document.getElementById('file-name').innerText = file.name;
+            const reader = new FileReader();
+
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+                    
+                    if (json.length === 0) {
+                        alert("El archivo está vacío o no contiene datos válidos.");
+                        return;
+                    }
+
+                    const encabezados = Object.keys(json[0]);
+                    if (!validarArchivo(encabezados)) {
+                        alert("El archivo no cumple con el formato requerido. Debe contener las columnas: 'resumen', 'Origen - Destino' y 'Motivo Incumplimiento'.");
+                        fileInput.value = '';
+                        return;
+                    }
+
+                    rawData = json;
+                    initDashboard();
+                } catch (err) {
+                    console.error(err);
+                    alert("Error al procesar el archivo. Asegúrate de que sea un formato válido de Excel o CSV.");
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        function resetData() {
+            rawData = [];
+            filteredData = [];
+            currentPage = 1;
+            currentSortColumn = null;
+            currentSortDirection = 'asc';
+            columnActiveFilters = { colA: null, plaza: null };
+            document.getElementById('welcome-card').classList.remove('hidden');
+            document.getElementById('dashboard-content').classList.add('hidden');
+            document.getElementById('file-info').classList.add('hidden');
+            document.getElementById('upload-section-header').classList.remove('hidden');
+            fileInput.value = '';
+            if (chartDaysInstance) chartDaysInstance.destroy();
+            if (chartPlazasInstance) chartPlazasInstance.destroy();
+            updateFloatingButtonVisibility(0);
+        }
+
+        function initDashboard() {
+            document.getElementById('welcome-card').classList.add('hidden');
+            document.getElementById('upload-section-header').classList.add('hidden');
+            document.getElementById('dashboard-content').classList.remove('hidden');
+            document.getElementById('file-info').classList.remove('hidden');
+
+            populateFilters();
+            applyFilters();
+        }
+
+        function toggleDateDropdown() {
+            const menu = document.getElementById('date-dropdown-menu');
+            menu.classList.toggle('hidden');
+        }
+
+        function openFilterModal(columnType, event) {
+            if (event) event.stopPropagation();
+            if (rawData.length === 0) return;
+
+            activeModalColumn = columnType;
+            const keys = Object.keys(rawData[0]);
+            let colName = columnType === 'colA' ? (keys[0] || 'Columna A') : 'Plaza';
+
+            document.getElementById('modal-filter-title').textContent = `Filtrar Columna: ${colName}`;
+            document.getElementById('modal-search-input').value = '';
+
+            const valuesSet = new Set();
+            rawData.forEach(row => {
+                let val = row[columnType === 'colA' ? keys[0] : keys[1]];
+                if (val !== undefined && val !== null && val !== '') {
+                    valuesSet.add(String(val).trim());
+                }
+            });
+
+            const sortedValues = Array.from(valuesSet).sort();
+            const container = document.getElementById('modal-checkboxes-container');
+            container.innerHTML = '';
+
+            const currentActiveSet = columnActiveFilters[columnType];
+
+            sortedValues.forEach(val => {
+                const isChecked = currentActiveSet === null ? true : currentActiveSet.has(val);
+
+                const label = document.createElement('label');
+                label.className = "flex items-center space-x-2.5 cursor-pointer hover:bg-gray-50 p-1.5 rounded transition";
+                label.innerHTML = `
+                    <input type="checkbox" value="${escapeHtml(val)}" ${isChecked ? 'checked' : ''} class="modal-val-checkbox rounded text-red-600 focus:ring-red-500 w-4 h-4">
+                    <span class="truncate">${escapeHtml(val)}</span>
+                `;
+                container.appendChild(label);
+            });
+
+            document.getElementById('column-filter-modal').classList.remove('hidden');
+        }
+
+        function closeFilterModal() {
+            document.getElementById('column-filter-modal').classList.add('hidden');
+            activeModalColumn = null;
+        }
+
+        function setModalAllCheckboxes(select) {
+            const checkboxes = document.querySelectorAll('.modal-val-checkbox');
+            checkboxes.forEach(cb => {
+                if (cb.parentElement.style.display !== 'none') {
+                    cb.checked = select;
+                }
+            });
+        }
+
+        function filterModalCheckboxes(query) {
+            const q = query.toLowerCase();
+            const checkboxes = document.querySelectorAll('.modal-val-checkbox');
+            checkboxes.forEach(cb => {
+                const text = cb.nextElementSibling.textContent.toLowerCase();
+                const parentLabel = cb.parentElement;
+                if (text.includes(q)) {
+                    parentLabel.style.display = '';
+                } else {
+                    parentLabel.style.display = 'none';
+                }
+            });
+        }
+
+        function applyModalFilter() {
+            if (!activeModalColumn) return;
+
+            const checkboxes = document.querySelectorAll('.modal-val-checkbox');
+            const selectedSet = new Set();
+            let allChecked = true;
+            let totalCount = 0;
+
+            checkboxes.forEach(cb => {
+                totalCount++;
+                if (cb.checked) {
+                    selectedSet.add(cb.value);
+                } else {
+                    allChecked = false;
+                }
+            });
+
+            if (allChecked || selectedSet.size === totalCount) {
+                columnActiveFilters[activeModalColumn] = null;
+            } else {
+                columnActiveFilters[activeModalColumn] = selectedSet;
+            }
+
+            if (activeModalColumn === 'plaza') {
+                if (columnActiveFilters.plaza === null || columnActiveFilters.plaza.size === 1) {
+                    if (columnActiveFilters.plaza && columnActiveFilters.plaza.size === 1) {
+                        document.getElementById('filter-plaza').value = Array.from(columnActiveFilters.plaza)[0];
+                    } else {
+                        document.getElementById('filter-plaza').value = '';
+                    }
+                }
+            } else if (activeModalColumn === 'colA') {
+                if (columnActiveFilters.colA === null || columnActiveFilters.colA.size === 1) {
+                    if (columnActiveFilters.colA && columnActiveFilters.colA.size === 1) {
+                        document.getElementById('filter-colA').value = Array.from(columnActiveFilters.colA)[0];
+                    } else {
+                        document.getElementById('filter-colA').value = '';
+                    }
+                }
+            }
+
+            closeFilterModal();
+            applyFilters();
+        }
+
+        window.addEventListener('click', function(e) {
+            const dropdownBtn = document.getElementById('date-dropdown-btn');
+            const dropdownMenu = document.getElementById('date-dropdown-menu');
+            if (dropdownBtn && dropdownMenu && !dropdownBtn.contains(e.target) && !dropdownMenu.contains(e.target)) {
+                dropdownMenu.classList.add('hidden');
+            }
+
+            const modalBg = document.getElementById('column-filter-modal');
+            if (e.target === modalBg) {
+                closeFilterModal();
+            }
+        });
+
+        function selectAllDates(select) {
+            const checkboxes = document.querySelectorAll('.date-checkbox');
+            checkboxes.forEach(cb => cb.checked = select);
+            applyFilters();
+        }
+
+        function populateFilters() {
+            if (rawData.length === 0) return;
+
+            const keys = Object.keys(rawData[0]);
+            const colAKey = keys[0] || 'Columna A';
+            const colCKey = keys[2] || 'Columna C';
+            const plazaKey = keys[1] || 'Plaza';
+            const fechaKey = keys.find(k => k.includes('Fecha Compromiso')) || keys[17] || 'Fecha Compromiso Entrega';
+
+            document.getElementById('colA-header-title').textContent = colAKey;
+            document.getElementById('colC-header-title').textContent = colCKey;
+            document.getElementById('table1-colA-name').textContent = colAKey;
+            document.getElementById('table2-colA-name').textContent = colAKey;
+            document.getElementById('table2-colC-name').textContent = colCKey;
+            document.getElementById('filter-colA-label').innerHTML = `<i class="fa-solid fa-list-check mr-1 text-[#DA291C]"></i> Resumen`;
+
+            const colASet = new Set();
+            const plazasSet = new Set();
+            const fechasSet = new Set();
+
+            rawData.forEach(row => {
+                let colaVal = row[colAKey];
+                if (colaVal !== undefined && colaVal !== null && colaVal !== '') {
+                    colASet.add(String(colaVal).trim());
+                }
+
+                let plaza = row[plazaKey];
+                if (plaza !== undefined && plaza !== null && plaza !== '') {
+                    plazasSet.add(String(plaza).trim());
+                }
+
+                let fecha = row[fechaKey];
+                if (fecha !== undefined && fecha !== null && fecha !== '') {
+                    if (fecha instanceof Date) {
+                        fecha = fecha.toISOString().split('T')[0];
+                    } else {
+                        fecha = String(fecha).trim().split(' ')[0];
+                    }
+                    if (fecha) fechasSet.add(fecha);
+                }
+            });
+
+            const colASelect = document.getElementById('filter-colA');
+            colASelect.innerHTML = '<option value="">Todos</option>';
+            Array.from(colASet).sort().forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item;
+                opt.textContent = item;
+                colASelect.appendChild(opt);
+            });
+
+            const plazaSelect = document.getElementById('filter-plaza');
+            plazaSelect.innerHTML = '<option value="">Todas las Plazas</option>';
+            Array.from(plazasSet).sort().forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p;
+                opt.textContent = p;
+                plazaSelect.appendChild(opt);
+            });
+
+            const fechaContainer = document.getElementById('filter-fecha');
+            fechaContainer.innerHTML = '';
+            Array.from(fechasSet).sort().forEach(f => {
+                const label = document.createElement('label');
+                label.className = "flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded";
+                label.innerHTML = `
+                    <input type="checkbox" value="${f}" onchange="applyFilters()" class="date-checkbox rounded text-red-600 focus:ring-red-500">
+                    <span>${f}</span>
+                `;
+                fechaContainer.appendChild(label);
+            });
+        }
+
+        function applyFilters() {
+            if (rawData.length === 0) return;
+
+            currentPage = 1;
+
+            const keys = Object.keys(rawData[0]);
+            const colAKey = keys[0] || 'Columna A';
+            const plazaKey = keys[1] || 'Plaza';
+            const fechaKey = keys.find(k => k.includes('Fecha Compromiso')) || keys[17] || 'Fecha Compromiso Entrega';
+
+            const selectedColA = document.getElementById('filter-colA').value;
+            const selectedPlaza = document.getElementById('filter-plaza').value;
+            const selectedFechas = Array.from(document.querySelectorAll('.date-checkbox:checked')).map(cb => cb.value);
+            
+            const dateTextSpan = document.getElementById('date-dropdown-text');
+            if (selectedFechas.length === 0) {
+                dateTextSpan.textContent = "Todas las fechas";
+            } else if (selectedFechas.length === 1) {
+                dateTextSpan.textContent = selectedFechas[0];
+            } else {
+                dateTextSpan.textContent = `${selectedFechas.length} fechas seleccionadas`;
+            }
+
+            const searchText = document.getElementById('filter-search').value.toLowerCase();
+
+            filteredData = rawData.filter(row => {
+                if (selectedColA) {
+                    let colAVal = String(row[colAKey] || '').trim();
+                    if (colAVal !== selectedColA) return false;
+                }
+
+                if (columnActiveFilters.colA !== null) {
+                    let colAVal = String(row[colAKey] || '').trim();
+                    if (!columnActiveFilters.colA.has(colAVal)) return false;
+                }
+
+                let plazaVal = String(row[plazaKey] || '').trim();
+                if (selectedPlaza && plazaVal !== selectedPlaza) return false;
+
+                if (columnActiveFilters.plaza !== null) {
+                    if (!columnActiveFilters.plaza.has(plazaVal)) return false;
+                }
+
+                if (selectedFechas.length > 0) {
+                    let fechaVal = row[fechaKey];
+                    if (fechaVal instanceof Date) {
+                        fechaVal = fechaVal.toISOString().split('T')[0];
+                    } else {
+                        fechaVal = String(fechaVal || '').trim().split(' ')[0];
+                    }
+                    if (!selectedFechas.includes(fechaVal)) return false;
+                }
+
+                if (searchText) {
+                    const rowString = Object.values(row).join(' ').toLowerCase();
+                    if (!rowString.includes(searchText)) return false;
+                }
+
+                return true;
+            });
+
+            sortFilteredDataInMemory();
+
+            let activeCount = (selectedColA ? 1 : 0) + (selectedPlaza ? 1 : 0) + (selectedFechas.length > 0 ? 1 : 0) + (searchText ? 1 : 0);
+            if (columnActiveFilters.colA !== null) activeCount++;
+            if (columnActiveFilters.plaza !== null) activeCount++;
+
+            updateActiveFiltersBadge(activeCount);
+            updateFloatingButtonVisibility(activeCount);
+            updateKPIs();
+            updateCharts(fechaKey, plazaKey);
+            updateTable(keys);
+            updatePercentagesTable(keys);
+            filterTableColA();
+        }
+
+        function sortTable(columnIndex) {
+            if (filteredData.length === 0) return;
+
+            if (currentSortColumn === columnIndex) {
+                currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSortColumn = columnIndex;
+                currentSortDirection = 'asc';
+            }
+
+            sortFilteredDataInMemory();
+            currentPage = 1;
+            updateTable(Object.keys(rawData[0] || {}));
+            updateSortIconsUI();
+        }
+
+        function sortFilteredDataInMemory() {
+            if (currentSortColumn === null) return;
+
+            const keys = Object.keys(rawData[0] || {});
+            const colAKey = keys[0] || 'Columna A';
+            const plazaKey = keys[1] || 'Plaza';
+            const colCKey = keys[2] || 'Columna C';
+            const clientKey = keys[14] || 'Nombre de Cliente';
+            const fechaKey = keys.find(k => k.includes('Fecha Compromiso')) || keys[17] || 'Fecha Compromiso Entrega';
+
+            const columnKeyMap = [colAKey, colCKey, plazaKey, clientKey, fechaKey];
+            const targetKey = columnKeyMap[currentSortColumn];
+
+            filteredData.sort((a, b) => {
+                let valA = a[targetKey] !== undefined && a[targetKey] !== null ? a[targetKey] : '';
+                let valB = b[targetKey] !== undefined && b[targetKey] !== null ? b[targetKey] : '';
+
+                if (valA instanceof Date) valA = valA.toISOString().split('T')[0];
+                if (valB instanceof Date) valB = valB.toISOString().split('T')[0];
+
+                valA = String(valA).toLowerCase().trim();
+                valB = String(valB).toLowerCase().trim();
+
+                let numA = parseFloat(valA);
+                let numB = parseFloat(valB);
+
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return currentSortDirection === 'asc' ? numA - numB : numB - numA;
+                }
+
+                if (valA < valB) return currentSortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+        }
+
+        function updateSortIconsUI() {
+            const headers = document.querySelectorAll('#main-table th');
+            headers.forEach((th, idx) => {
+                const iconContainer = th.querySelector('.fa-sort, .fa-sort-up, .fa-sort-down');
+                if (!iconContainer) return;
+
+                if (idx === currentSortColumn) {
+                    iconContainer.className = currentSortDirection === 'asc' ? 'fa-solid fa-sort-up text-xs text-[#DA291C]' : 'fa-solid fa-sort-down text-xs text-[#DA291C]';
+                } else {
+                    iconContainer.className = 'fa-solid fa-sort text-[10px] text-gray-400';
+                }
+            });
+        }
+
+        function updateFloatingButtonVisibility(count) {
+            const btn = document.getElementById('floating-clear-btn');
+            if (count > 0) btn.classList.remove('hidden');
+            else btn.classList.add('hidden');
+        }
+
+        function updatePercentagesTable(keys) {
+            const colAKey = keys[0] || 'Columna A';
+            const tbody = document.getElementById('table-percentages-body');
+            tbody.innerHTML = '';
+
+            const counts = {};
+            let totalValid = 0;
+
+            filteredData.forEach(row => {
+                let val = String(row[colAKey] || 'SIN VALOR').trim();
+                counts[val] = (counts[val] || 0) + 1;
+                totalValid++;
+            });
+
+            const sortedEntries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+
+            sortedEntries.forEach(([item, count]) => {
+                const percentage = totalValid > 0 ? ((count / totalValid) * 100).toFixed(2) : 0;
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-red-50/45 transition duration-150";
+                tr.innerHTML = `
+                    <td class="p-3 font-medium text-gray-700">${escapeHtml(item)}</td>
+                    <td class="p-3 text-right font-semibold text-gray-800">${count.toLocaleString()}</td>
+                    <td class="p-3 text-right font-bold text-[#DA291C]">${percentage}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('total-percentage-count').textContent = `Total registros: ${totalValid.toLocaleString()}`;
+        }
+
+        function filterTableColA() {
+            if (rawData.length === 0) return;
+
+            const keys = Object.keys(rawData[0]);
+            const colAKey = keys[0] || 'Columna A';
+            const colCKey = keys[2] || 'Columna C';
+            const plazaKey = keys[1] || 'Plaza';
+
+            const query = document.getElementById('search-colA-input').value.toLowerCase();
+            const tbody = document.getElementById('table-search-colA-body');
+            tbody.innerHTML = '';
+
+            const sourceData = filteredData.length > 0 ? filteredData : rawData;
+            const matchedRows = sourceData.filter(row => {
+                let val = String(row[colAKey] || '').toLowerCase();
+                return val.includes(query);
+            });
+
+            const limit = 200;
+            const displayRows = matchedRows.slice(0, limit);
+
+            displayRows.forEach(row => {
+                const colAVal = row[colAKey] || '';
+                const colCVal = row[colCKey] || '';
+                const plaza = row[plazaKey] || '';
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-red-50/45 transition duration-150";
+                tr.innerHTML = `
+                    <td class="p-3 font-medium text-gray-700 bg-gray-50/30">${escapeHtml(colAVal)}</td>
+                    <td class="p-3 text-gray-700">${escapeHtml(colCVal)}</td>
+                    <td class="p-3 font-semibold text-gray-800">${escapeHtml(plaza)}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('search-colA-count').textContent = `Mostrando ${displayRows.length} de ${matchedRows.length} registros`;
+        }
+
+        function updateActiveFiltersBadge(count) {
+            const badge = document.getElementById('active-filters-badge');
+            if (count > 0) {
+                badge.textContent = `${count} filtro(s) activo(s)`;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
+        function clearAllFilters() {
+            document.getElementById('filter-colA').value = '';
+            document.getElementById('filter-plaza').value = '';
+            document.querySelectorAll('.date-checkbox').forEach(cb => cb.checked = false);
+            document.getElementById('date-dropdown-text').textContent = "Todas las fechas";
+            document.getElementById('filter-search').value = '';
+            document.getElementById('search-colA-input').value = '';
+            columnActiveFilters = { colA: null, plaza: null };
+            applyFilters();
+        }
+
+        function updateKPIs() {
+            const total = filteredData.length;
+            document.getElementById('kpi-total').textContent = total.toLocaleString();
+
+            const keys = Object.keys(rawData[0] || {});
+            const plazaKey = keys[1] || 'Plaza';
+            const fechaKey = keys.find(k => k.includes('Fecha Compromiso')) || keys[17] || 'Fecha Compromiso Entrega';
+            const delayKey = keys.find(k => k.includes('Retraso') || k.includes('Días')) || keys[31] || 'Días de Retraso en Entrega';
+
+            const plazasSet = new Set();
+            const fechasSet = new Set();
+            let totalDelay = 0;
+            let delayCount = 0;
+
+            filteredData.forEach(row => {
+                if (row[plazaKey]) plazasSet.add(String(row[plazaKey]).trim());
+                if (row[fechaKey]) {
+                    let f = row[fechaKey];
+                    if (f instanceof Date) f = f.toISOString().split('T')[0];
+                    else f = String(f).trim().split(' ')[0];
+                    fechasSet.add(f);
+                }
+                let d = parseFloat(row[delayKey]);
+                if (!isNaN(d)) {
+                    totalDelay += d;
+                    delayCount++;
+                }
+            });
+
+            document.getElementById('kpi-plazas').textContent = plazasSet.size;
+            document.getElementById('kpi-fechas').textContent = fechasSet.size;
+            const avgDelay = delayCount > 0 ? (totalDelay / delayCount).toFixed(1) : 0;
+            document.getElementById('kpi-retraso').textContent = `${avgDelay} Días`;
+        }
+
+        function updateCharts(fechaKey, plazaKey) {
+            const daysCountMap = {};
+            filteredData.forEach(row => {
+                let f = row[fechaKey];
+                if (!f) return;
+                if (f instanceof Date) f = f.toISOString().split('T')[0];
+                else f = String(f).trim().split(' ')[0];
+                daysCountMap[f] = (daysCountMap[f] || 0) + 1;
+            });
+
+            const sortedDays = Object.keys(daysCountMap).sort();
+            const dayValues = sortedDays.map(d => daysCountMap[d]);
+
+            const ctxDays = document.getElementById('chartDíasPaquetes').getContext('2d');
+            if (chartDaysInstance) chartDaysInstance.destroy();
+
+            chartDaysInstance = new Chart(ctxDays, {
+                type: 'bar',
+                data: {
+                    labels: sortedDays,
+                    datasets: [{
+                        label: 'Paquetes Afectados',
+                        data: dayValues,
+                        backgroundColor: '#DA291C',
+                        borderRadius: 6,
+                        hoverBackgroundColor: '#B71C1C'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#f3f4f6' } },
+                        x: { grid: { display: false } }
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const clickedDate = sortedDays[index];
+                            const checkbox = document.querySelector(`.date-checkbox[value="${clickedDate}"]`);
+                            if (checkbox) {
+                                checkbox.checked = true;
+                                applyFilters();
+                            }
+                        }
+                    }
+                }
+            });
+
+            const plazaCountMap = {};
+            filteredData.forEach(row => {
+                let p = String(row[plazaKey] || 'SIN PLAZA').trim();
+                plazaCountMap[p] = (plazaCountMap[p] || 0) + 1;
+            });
+
+            const sortedPlazas = Object.entries(plazaCountMap).sort((a,b) => b[1] - a[1]).slice(0, 8);
+            const plazaLabels = sortedPlazas.map(item => item[0]);
+            const plazaDataVals = sortedPlazas.map(item => item[1]);
+
+            const ctxPlazas = document.getElementById('chartPlazas').getContext('2d');
+            if (chartPlazasInstance) chartPlazasInstance.destroy();
+
+            chartPlazasInstance = new Chart(ctxPlazas, {
+                type: 'doughnut',
+                data: {
+                    labels: plazaLabels,
+                    datasets: [{
+                        data: plazaDataVals,
+                        backgroundColor: ['#DA291C', '#B71C1C', '#FFC107', '#E53935', '#FF7043', '#9A0007', '#FFA000', '#FF5722'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 12,
+                                font: { size: 11 },
+                                generateLabels: (chart) => {
+                                    const data = chart.data;
+                                    if (data.labels.length && data.datasets.length) {
+                                        return data.labels.map((label, i) => {
+                                            const value = data.datasets[0].data[i];
+                                            return {
+                                                text: `${label} (${value} paq.)`,
+                                                fillStyle: data.datasets[0].backgroundColor[i],
+                                                strokeStyle: data.datasets[0].borderColor,
+                                                lineWidth: data.datasets[0].borderWidth,
+                                                hidden: isNaN(value),
+                                                index: i
+                                            };
+                                        });
+                                    }
+                                    return [];
+                                }
+                            }
+                        }
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const clickedPlaza = plazaLabels[index];
+                            document.getElementById('filter-plaza').value = clickedPlaza;
+                            applyFilters();
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateTable(keys) {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            const colAKey = keys[0] || 'Columna A';
+            const colCKey = keys[2] || 'Columna C';
+            const plazaKey = keys[1] || 'Plaza';
+            const clientKey = keys[14] || 'Nombre de Cliente';
+            const fechaKey = keys.find(k => k.includes('Fecha Compromiso')) || keys[17] || 'Fecha Compromiso Entrega';
+
+            let rowsToDisplay = [];
+
+            if (filteredData.length < 9) {
+                rowsToDisplay = [...filteredData];
+                while (rowsToDisplay.length < 3) {
+                    rowsToDisplay.push({});
+                }
+            } else {
+                const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+                if (currentPage > totalPages) currentPage = totalPages;
+                const start = (currentPage - 1) * rowsPerPage;
+                const end = start + rowsPerPage;
+                rowsToDisplay = filteredData.slice(start, end);
+            }
+
+            rowsToDisplay.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-red-50/45 transition duration-150";
+
+                if (Object.keys(row).length === 0) {
+                    tr.innerHTML = `
+                        <td class="p-3 text-transparent select-none">&nbsp;</td>
+                        <td class="p-3 text-transparent select-none">&nbsp;</td>
+                        <td class="p-3 text-transparent select-none">&nbsp;</td>
+                        <td class="p-3 text-transparent select-none">&nbsp;</td>
+                        <td class="p-3 text-center text-transparent select-none">&nbsp;</td>
+                    `;
+                } else {
+                    const colAVal = row[colAKey] || '';
+                    const colCVal = row[colCKey] || '';
+                    const plaza = row[plazaKey] || '';
+                    const client = row[clientKey] || '';
+                    let fecha = row[fechaKey] || '';
+                    if (fecha instanceof Date) fecha = fecha.toISOString().split('T')[0];
+                    else if (fecha) fecha = String(fecha).trim().split(' ')[0];
+
+                    tr.innerHTML = `
+                        <td class="p-3 font-medium text-gray-700 bg-gray-50/30">${escapeHtml(colAVal)}</td>
+                        <td class="p-3 font-medium text-gray-700">${escapeHtml(colCVal)}</td>
+                        <td class="p-3 font-semibold text-gray-800">${escapeHtml(plaza)}</td>
+                        <td class="p-3">${escapeHtml(client)}</td>
+                        <td class="p-3 text-center text-gray-500">${escapeHtml(fecha)}</td>
+                    `;
+                }
+                tbody.appendChild(tr);
+            });
+
+            if (filteredData.length < 9) {
+                document.getElementById('table-row-count').textContent = `Mostrando ${filteredData.length} de ${filteredData.length} registros filtrados`;
+            } else {
+                const startNum = (currentPage - 1) * rowsPerPage + 1;
+                const endNum = Math.min(currentPage * rowsPerPage, filteredData.length);
+                document.getElementById('table-row-count').textContent = `Mostrando registros ${startNum}-${endNum} de ${filteredData.length}`;
+            }
+
+            updatePaginationControls();
+        }
+
+        function updatePaginationControls() {
+            const paginationContainer = document.getElementById('table-pagination-controls');
+            paginationContainer.innerHTML = '';
+
+            if (filteredData.length > 10) {
+                const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+
+                const prevBtn = document.createElement('button');
+                prevBtn.textContent = 'Anterior';
+                prevBtn.className = `px-2.5 py-1 rounded text-xs font-semibold cursor-pointer ${currentPage === 1 ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`;
+                prevBtn.disabled = currentPage === 1;
+                prevBtn.onclick = () => {
+                    if (currentPage > 1) {
+                        currentPage--;
+                        updateTable(Object.keys(rawData[0] || {}));
+                    }
+                };
+                paginationContainer.appendChild(prevBtn);
+
+                const infoSpan = document.createElement('span');
+                infoSpan.className = 'px-2 font-medium text-gray-600';
+                infoSpan.textContent = `Pág. ${currentPage} de ${totalPages}`;
+                paginationContainer.appendChild(infoSpan);
+
+                const nextBtn = document.createElement('button');
+                nextBtn.textContent = 'Siguiente';
+                nextBtn.className = `px-2.5 py-1 rounded text-xs font-semibold cursor-pointer ${currentPage === totalPages ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`;
+                nextBtn.disabled = currentPage === totalPages;
+                nextBtn.onclick = () => {
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        updateTable(Object.keys(rawData[0] || {}));
+                    }
+                };
+                paginationContainer.appendChild(nextBtn);
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function exportToCSV() {
+            if (filteredData.length === 0) {
+                alert("No hay datos para exportar.");
+                return;
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(filteredData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Filtrados Estafeta");
+            XLSX.writeFile(workbook, "Reporte_Estafeta_Filtrado.xlsx");
+        }
+    </script>
+</body>
+</html>

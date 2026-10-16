@@ -1,0 +1,1292 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Logística - Estafeta</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Leaflet MarkerCluster CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (XLSX) & PapaParse para procesamiento local -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- FontAwesome para iconos -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        .estafeta-red { background-color: #DA291C; }
+        .estafeta-red-text { color: #DA291C; }
+        .estafeta-border { border-color: #DA291C; }
+
+        #map {
+            background-color: #f3f4f6 !important;
+        }
+
+        #map-card.fullscreen {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 9999 !important;
+            border-radius: 0 !important;
+            padding: 16px !important;
+            background-color: white !important;
+            box-shadow: none !important;
+            display: flex;
+            flex-direction: column;
+        }
+        #map-card.fullscreen #map {
+            flex-grow: 1 !important;
+            height: auto !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans antialiased min-h-screen flex flex-col relative">
+
+    <!-- Header Corporativo con Carga de Archivo Integrada -->
+    <header class="estafeta-red text-white shadow-md z-20">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-col md:flex-row justify-between items-center gap-4">
+            
+            <div class="flex items-center space-x-3">
+                <i class="fa-solid fa-truck-fast text-3xl"></i>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-wide">ESTAFETA</h1>
+                    <p class="text-xs uppercase tracking-wider opacity-90">Monitoreo de Entregas a Domicilio</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-3 bg-red-800 bg-opacity-60 px-4 py-2 rounded-xl border border-red-600 hover:bg-opacity-80 transition-all cursor-pointer shadow-inner" id="banner-drop-zone" onclick="document.getElementById('file-input').click()">
+                <input type="file" id="file-input" class="hidden" accept=".csv, .xlsx, .xls">
+                <i class="fa-solid fa-cloud-arrow-up text-2xl text-white"></i>
+                <div class="text-left">
+                    <p id="file-status" class="text-sm font-semibold">Cargar Excel / CSV</p>
+                    <p class="text-xs text-red-200">Arrastra o haz clic aquí</p>
+                </div>
+            </div>
+
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full space-y-6">
+
+        <div id="dashboard-content" class="hidden space-y-6">
+
+            <!-- Barra de Acciones, Filtros y Buscadores Integrados -->
+            <div class="bg-white p-4 rounded-xl shadow-sm flex flex-wrap items-center justify-between gap-4">
+                <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto relative">
+                    
+                    <!-- Filtro Flotante de Plazas -->
+                    <div class="relative">
+                        <div id="plaza-picker-trigger" class="bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-300 px-3.5 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 cursor-pointer shadow-sm select-none">
+                            <i class="fa-solid fa-map-marked-alt estafeta-red-text"></i>
+                            <span id="plaza-trigger-label" class="font-bold text-gray-800">Plazas (Todas)</span>
+                            <i class="fa-solid fa-chevron-down text-xs text-gray-400 ml-1"></i>
+                        </div>
+
+                        <div id="plaza-picker-dropdown" class="absolute left-0 mt-2 bg-white border border-gray-200 rounded-2xl shadow-2xl p-4 w-72 z-50 hidden">
+                            <div class="flex items-center justify-between mb-3 border-b border-gray-100 pb-3">
+                                <div class="flex items-center space-x-2">
+                                    <i class="fa-solid fa-map-marked-alt estafeta-red-text"></i>
+                                    <span class="font-bold text-gray-800 tracking-wide text-sm">PLAZAS</span>
+                                </div>
+                                <div class="flex items-center space-x-2 text-xs font-bold">
+                                    <button type="button" onclick="selectAllPlazas()" class="estafeta-red-text hover:underline">Todas</button>
+                                    <span class="text-gray-300">|</span>
+                                    <button type="button" onclick="deselectAllPlazas()" class="text-gray-500 hover:underline">Ninguna</button>
+                                </div>
+                            </div>
+
+                            <div id="plaza-options-container" class="space-y-1.5 max-h-60 overflow-y-auto">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Calendario de Fechas -->
+                    <div class="relative">
+                        <div id="date-picker-trigger" class="bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-300 px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 cursor-pointer shadow-sm select-none">
+                            <span class="text-xs font-semibold text-gray-500">Inicio</span>
+                            <span id="date-trigger-label" class="font-bold text-gray-800">Seleccionar días</span>
+                            <i class="fa-solid fa-calendar-days estafeta-red-text ml-1"></i>
+                        </div>
+
+                        <div id="date-picker-dropdown" class="absolute left-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl p-4 w-80 z-50 hidden">
+                            <div class="flex items-center justify-between mb-3 border-b border-gray-100 pb-2">
+                                <div class="flex space-x-1">
+                                    <button type="button" id="cal-prev-year" class="p-1.5 hover:bg-gray-100 rounded text-gray-600 text-xs font-bold" title="Año Anterior">&laquo;</button>
+                                    <button type="button" id="cal-prev-month" class="p-1.5 hover:bg-gray-100 rounded text-gray-600 text-xs font-bold" title="Mes Anterior">&#8249;</button>
+                                </div>
+                                <span id="cal-month-year-title" class="font-bold text-sm text-gray-800">October 2026</span>
+                                <div class="flex space-x-1">
+                                    <button type="button" id="cal-next-month" class="p-1.5 hover:bg-gray-100 rounded text-gray-600 text-xs font-bold" title="Mes Siguiente">&#8250;</button>
+                                    <button type="button" id="cal-next-year" class="p-1.5 hover:bg-gray-100 rounded text-gray-600 text-xs font-bold" title="Año Siguiente">&raquo;</button>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-gray-400 mb-2">
+                                <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                            </div>
+
+                            <div id="cal-days-grid" class="grid grid-cols-7 gap-1 text-center text-xs"></div>
+
+                            <div class="flex items-center justify-between mt-3 pt-2 border-t border-gray-100 text-xs">
+                                <button type="button" id="cal-select-all" class="estafeta-red-text font-bold hover:underline">Todas</button>
+                                <button type="button" id="cal-today" class="estafeta-red-text font-bold hover:underline">Today</button>
+                                <button type="button" id="cal-clear-all" class="text-gray-500 font-bold hover:underline">Ninguna</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="open-route-modal" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3.5 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 shadow-sm">
+                        <i class="fa-solid fa-route estafeta-red-text"></i>
+                        <span>Filtrar Ruta</span>
+                    </button>
+                    <button id="open-cp-modal" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3.5 py-2 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 shadow-sm">
+                        <i class="fa-solid fa-map-pin estafeta-red-text"></i>
+                        <span>C.P.</span>
+                    </button>
+                    
+                    <div class="relative flex-grow sm:flex-grow-0 sm:w-60">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-red-500">
+                            <i class="fa-solid fa-magnifying-glass text-sm"></i>
+                        </span>
+                        <input type="text" id="global-search-input" placeholder="Buscar cualquier dato..." class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm font-medium transition-all">
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end w-full lg:w-auto">
+                    <span class="text-xs text-gray-500 font-medium"><span id="search-counter" class="font-bold text-gray-800">0</span> registros</span>
+                </div>
+            </div>
+
+            <!-- Línea de Tiempo -->
+            <div class="bg-white p-6 rounded-xl shadow-sm space-y-5">
+                <div class="border-b border-gray-100 pb-3">
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                        <i class="fa-solid fa-timeline estafeta-red-text mr-2"></i> Línea de Tiempo de Entregas (Secuencia Ordenada por Hora)
+                    </h3>
+                </div>
+
+                <div id="timeline-kpi-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3"></div>
+                <div id="timeline-pagination-container" class="flex items-center justify-center gap-4 pt-3 border-t border-gray-100"></div>
+            </div>
+
+            <!-- Gráfica de Picos de Entregas cada 30 Minutos con KPIs de Máximo, Mínimo, Promedio y Tiempo en Ruta -->
+            <div class="bg-white p-6 rounded-xl shadow-sm space-y-5">
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center border-b border-gray-100 pb-3 gap-3">
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                        <i class="fa-solid fa-chart-line estafeta-red-text mr-2"></i> Picos de Mayor Entrega (Intervalos de 30 Minutos)
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full lg:w-auto">
+                        <!-- Pico Máximo -->
+                        <div class="flex items-center space-x-3 bg-red-50 border border-red-200 px-3.5 py-2 rounded-xl shadow-sm">
+                            <div class="w-9 h-9 rounded-lg bg-[#DA291C] text-white flex items-center justify-center shadow-md flex-shrink-0">
+                                <i class="fa-solid fa-arrow-trend-up text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] uppercase font-bold text-red-600 tracking-wider">Pico Máximo</p>
+                                <p id="kpi-max-val" class="text-xs font-extrabold text-gray-800">-</p>
+                            </div>
+                        </div>
+
+                        <!-- Pico Mínimo -->
+                        <div class="flex items-center space-x-3 bg-emerald-50 border border-emerald-200 px-3.5 py-2 rounded-xl shadow-sm">
+                            <div class="w-9 h-9 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-md flex-shrink-0">
+                                <i class="fa-solid fa-arrow-trend-down text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Pico Mínimo</p>
+                                <p id="kpi-min-val" class="text-xs font-extrabold text-gray-800">-</p>
+                            </div>
+                        </div>
+
+                        <!-- Promedio Tiempo Entre Entregas -->
+                        <div class="flex items-center space-x-3 bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-xl shadow-sm">
+                            <div class="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-md flex-shrink-0">
+                                <i class="fa-solid fa-clock text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] uppercase font-bold text-blue-600 tracking-wider">Promedio Entrega</p>
+                                <p id="kpi-avg-time-val" class="text-xs font-extrabold text-gray-800">-</p>
+                            </div>
+                        </div>
+
+                        <!-- Tiempo en Ruta -->
+                        <div class="flex items-center space-x-3 bg-amber-50 border border-amber-200 px-3.5 py-2 rounded-xl shadow-sm">
+                            <div class="w-9 h-9 rounded-lg bg-amber-600 text-white flex items-center justify-center shadow-md flex-shrink-0">
+                                <i class="fa-solid fa-hourglass-half text-sm"></i>
+                            </div>
+                            <div>
+                                <p class="text-[10px] uppercase font-bold text-amber-600 tracking-wider">Tiempo en Ruta</p>
+                                <p id="kpi-sum-dead-time-val" class="text-xs font-extrabold text-gray-800">-</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="relative w-full h-72">
+                    <canvas id="time-series-chart"></canvas>
+                </div>
+            </div>
+
+            <!-- Mapa Interactivo -->
+            <div id="map-card" class="bg-white p-6 rounded-xl shadow-sm transition-all duration-300">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center">
+                        <i class="fa-solid fa-map-location-dot estafeta-red-text mr-2"></i> Secuencia Cronológica y Ubicaciones en Mapa
+                    </h3>
+                    <div class="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                        <div class="relative w-full sm:w-64">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-red-500">
+                                <i class="fa-solid fa-filter text-sm"></i>
+                            </span>
+                            <input type="text" id="sequence-search-input" placeholder="Filtrar secuencia Ej: 1, 3, 5" class="w-full pl-9 pr-3 py-1.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 text-sm font-medium transition-all">
+                        </div>
+                        <button id="toggle-lines-btn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 shadow-sm">
+                            <i id="lines-icon" class="fa-solid fa-eye-slash"></i>
+                            <span id="lines-text">Mostrar Líneas</span>
+                        </button>
+                        <button id="toggle-fullscreen-btn" class="bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center space-x-2 shadow-sm">
+                            <i id="fullscreen-icon" class="fa-solid fa-expand"></i>
+                            <span id="fullscreen-text">Pantalla Completa</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="map" class="h-96 rounded-lg w-full z-10"></div>
+            </div>
+
+            <!-- Tabla de Datos -->
+            <div class="bg-white p-6 rounded-xl shadow-sm space-y-4">
+                <h3 class="text-lg font-bold text-gray-800">Bitácora de Eventos Ejecutados</h3>
+                <div class="overflow-x-auto">
+                    <table id="data-table" class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-50">
+                            <tr id="table-headers"></tr>
+                        </thead>
+                        <tbody id="table-body" class="divide-y divide-gray-200 bg-white"></tbody>
+                    </table>
+                </div>
+                <div id="table-pagination-container" class="flex items-center justify-center gap-4 pt-3 border-t border-gray-100"></div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <button id="reset-filters" class="fixed bottom-6 right-6 z-50 bg-gray-900 hover:bg-gray-800 text-white px-4 py-3 rounded-full shadow-2xl transition-all duration-300 flex items-center space-x-2 text-sm font-medium transform scale-0 opacity-0 pointer-events-none">
+        <i class="fa-solid fa-rotate-left estafeta-red-text"></i>
+        <span>Restablecer Filtros</span>
+    </button>
+
+    <!-- Modales -->
+    <div id="route-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-gray-900 text-white px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-filter estafeta-red-text"></i>
+                    <h3 class="font-bold text-lg">Filtrar Ruta</h3>
+                </div>
+                <button id="close-route-modal" class="text-gray-400 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            <div class="p-6 space-y-4 flex-grow overflow-y-auto">
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </span>
+                    <input type="text" id="route-search-input" placeholder="Buscar ruta..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
+                </div>
+                <div class="flex justify-between items-center text-sm font-semibold px-1">
+                    <span class="text-gray-600">Seleccionar rutas:</span>
+                    <div class="space-x-3">
+                        <button type="button" id="select-all-routes" class="estafeta-red-text hover:underline">Todas</button>
+                        <span class="text-gray-300">|</span>
+                        <button type="button" id="deselect-all-routes" class="estafeta-red-text hover:underline">Ninguna</button>
+                    </div>
+                </div>
+                <div id="route-checkboxes-container" class="border border-gray-200 rounded-xl p-3 space-y-2 max-h-60 overflow-y-auto bg-gray-50"></div>
+            </div>
+            <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+                <button id="cancel-route-modal" class="px-5 py-2 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium text-sm transition-all">Cancelar</button>
+                <button id="apply-route-filter" class="px-5 py-2 rounded-xl estafeta-red hover:opacity-90 text-white font-medium text-sm shadow-md transition-all">Aplicar Filtro</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cp-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="bg-gray-900 text-white px-6 py-4 flex justify-between items-center">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-map-pin estafeta-red-text"></i>
+                    <h3 class="font-bold text-lg">Filtrar C.P.</h3>
+                </div>
+                <button id="close-cp-modal" class="text-gray-400 hover:text-white text-xl font-bold">&times;</button>
+            </div>
+            <div class="p-6 space-y-4 flex-grow overflow-y-auto">
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-400">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </span>
+                    <input type="text" id="cp-search-input" placeholder="Buscar código postal..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm">
+                </div>
+                <div class="flex justify-between items-center text-sm font-semibold px-1">
+                    <span class="text-gray-600">Seleccionar C.P.:</span>
+                    <div class="space-x-3">
+                        <button type="button" id="select-all-cps" class="estafeta-red-text hover:underline">Todas</button>
+                        <span class="text-gray-300">|</span>
+                        <button type="button" id="deselect-all-cps" class="estafeta-red-text hover:underline">Ninguna</button>
+                    </div>
+                </div>
+                <div id="cp-checkboxes-container" class="border border-gray-200 rounded-xl p-3 space-y-2 max-h-60 overflow-y-auto bg-gray-50"></div>
+            </div>
+            <div class="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+                <button id="cancel-cp-modal" class="px-5 py-2 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium text-sm transition-all">Cancelar</button>
+                <button id="apply-cp-filter" class="px-5 py-2 rounded-xl estafeta-red hover:opacity-90 text-white font-medium text-sm shadow-md transition-all">Aplicar Filtro</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script de Lógica y Seguridad Integrada -->
+    <script>
+        /* ==========================================================================
+           PARTE 1: CÓDIGO PARA EL INDEX / LOGIN (Al iniciar sesión de forma exitosa)
+           ========================================================================== */
+        function iniciarSesionExitosa(rolSeleccionado) {
+            // rolSeleccionado debe ser 'admin' o 'user'
+            // Codificamos el rol junto con la marca de tiempo en Base64 para mayor seguridad
+            const tokenSeguro = btoa(rolSeleccionado + "|" + Date.now()); 
+            localStorage.setItem('auth_role', tokenSeguro);
+            
+            // Redirigir al módulo operativo
+            window.location.href = 'Tiempos muertos Operativo TAX.html';
+        }
+
+
+        /* ==========================================================================
+           PARTE 2: CÓDIGO PARA LOS MÓDULOS OPERATIVOS (Seguridad, Decodificación e Inactividad)
+           ========================================================================== */
+        window.addEventListener('DOMContentLoaded', () => {
+            // 1. Consultar el rol activo codificado guardado en el navegador
+            const encodedRole = localStorage.getItem('auth_role');
+            
+            if (!encodedRole) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            let rol = '';
+            try {
+                // Decodificamos el Base64 para evitar modificaciones simples desde la consola
+                const decoded = atob(encodedRole);
+                const parts = decoded.split('|');
+                if (parts.length >= 1) {
+                    rol = parts[0];
+                }
+            } catch (e) {
+                // Si el valor fue alterado y no es un Base64 válido, redirigir al login
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            if (!rol) {
+                window.location.href = 'Panel de Control Operativo.html';
+                return;
+            }
+
+            // 2. Control de Inactividad (Cierre automático de sesión a los 30 minutos)
+            let inactivityTimer;
+            const maxInactivityMinutes = 30; // Puedes ajustar los minutos aquí
+
+            function resetInactivityTimer() {
+                clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(() => {
+                    alert("Su sesión ha expirado por inactividad.");
+                    localStorage.removeItem('auth_role');
+                    window.location.href = 'Panel de Control Operativo.html';
+                }, maxInactivityMinutes * 60 * 1000);
+            }
+
+            // Registrar eventos del usuario para reiniciar el contador de inactividad
+            ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(event => {
+                window.addEventListener(event, resetInactivityTimer);
+            });
+            resetInactivityTimer();
+
+            // 3. Aplicar restricciones de seguridad si NO es administrador
+            if (rol !== 'admin') {
+                console.log("Aplicando medidas de seguridad en este módulo.");
+                
+                // Bloquear Clic Secundario
+                document.addEventListener('contextmenu', e => e.preventDefault());
+
+                // Bloquear Selección de Texto
+                document.addEventListener('selectstart', e => e.preventDefault());
+
+                // Bloquear Copiar
+                document.addEventListener('copy', e => e.preventDefault());
+            } else {
+                console.warn("Modo Administrador: Módulo libre sin restricciones.");
+            }
+        });
+
+        let rawData = [];
+        let filteredData = [];
+        let mapInstance = null;
+        let markersClusterGroup = null;
+        let routeLinesLayer = null;
+        let showRouteLines = false;
+        let timeChart = null;
+        let isInitialMapLoad = true;
+
+        let plazaKey = '';
+        let dateKey = '';
+        let routeKey = ''; 
+        let cpKey = '';
+        let allPlazasList = [];
+        let selectedPlazasSet = new Set();
+        let allDatesList = [];
+        let selectedDatesSet = new Set();
+        let allRoutesList = [];
+        let allCpList = [];
+        let currentTimelinePage = 0;
+        let currentTablePage = 0;
+        const ITEMS_PER_PAGE = 10;
+
+        let calCurrentYear = 2026;
+        let calCurrentMonth = 9;
+
+        let searchTimeout = null;
+        let seqSearchTimeout = null;
+
+        const bannerDropZone = document.getElementById('banner-drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        window.addEventListener('dragover', (e) => e.preventDefault());
+        window.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        function validarArchivo(encabezados) {
+            if (!encabezados || encabezados.length === 0) return false;
+            const normalizados = encabezados.map(h => String(h).trim().toLowerCase());
+            return normalizados.includes("system name") &&
+                   normalizados.includes("delivery date time text") &&
+                   normalizados.includes("longitude");
+        }
+
+        function handleFile(file) {
+            document.getElementById('file-status').innerText = `Procesando...`;
+            const extension = file.name.split('.').pop().toLowerCase();
+
+            if (extension === 'csv') {
+                Papa.parse(file, {
+                    header: true,
+                    dynamicTyping: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        const headers = results.meta.fields || (results.data.length > 0 ? Object.keys(results.data[0]) : []);
+                        if (!validarArchivo(headers)) {
+                            alert("El archivo no cuenta con los encabezados requeridos (System Name, Delivery Date Time Text, Longitude).");
+                            document.getElementById('file-status').innerText = 'Error de validación';
+                            document.getElementById('file-input').value = "";
+                            return;
+                        }
+                        initDashboard(results.data, file.name);
+                    }
+                });
+            } else if (['xlsx', 'xls'].includes(extension)) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheet = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheet];
+                    
+                    const headers = XLSX.utils.sheet_to_json(worksheet, {header: 1})[0] || [];
+                    if (!validarArchivo(headers)) {
+                        alert("El archivo no cuenta con los encabezados requeridos (System Name, Delivery Date Time Text, Longitude).");
+                        document.getElementById('file-status').innerText = 'Error de validación';
+                        document.getElementById('file-input').value = "";
+                        return;
+                    }
+
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {defval: ""});
+                    initDashboard(jsonData, file.name);
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                alert('Formato no soportado. Por favor sube un archivo CSV o Excel.');
+                document.getElementById('file-status').innerText = 'Error de formato';
+                document.getElementById('file-input').value = "";
+            }
+        }
+
+        function initDashboard(data, fileName) {
+            rawData = data;
+            const sample = rawData[0] || {};
+            const keys = Object.keys(sample);
+            
+            plazaKey = keys.length > 1 ? keys[1] : findColumn(sample, ['plaza']);
+            dateKey = findColumn(sample, ['delivery date time text', 'delivery date', 'fecha', 'date', 'dia', 'timestamp', 'time', 'hora']);
+            routeKey = keys.length > 8 ? keys[8] : findColumn(sample, ['route', 'ruta', 'route code']);
+            cpKey = findColumn(sample, ['postal code', 'postal', 'cp', 'zip', 'codigo postal']);
+
+            if (dateKey) {
+                rawData.sort((a, b) => {
+                    let timeA = a[dateKey] ? new Date(a[dateKey]).getTime() : 0;
+                    let timeB = b[dateKey] ? new Date(b[dateKey]).getTime() : 0;
+                    if (isNaN(timeA)) timeA = 0;
+                    if (isNaN(timeB)) timeB = 0;
+                    return timeA - timeB;
+                });
+            }
+
+            extractFilters();
+
+            filteredData = [...rawData];
+            currentTimelinePage = 0;
+            currentTablePage = 0;
+            isInitialMapLoad = true;
+            document.getElementById('file-status').innerText = fileName;
+            document.getElementById('dashboard-content').classList.remove('hidden');
+
+            initMap();
+            updateDashboard();
+        }
+
+        function parseDateString(val) {
+            if (val === undefined || val === null || val === '') return '';
+            let strVal = String(val).trim();
+            if (strVal.includes('T')) strVal = strVal.split('T')[0];
+            else if (strVal.includes(' ')) strVal = strVal.split(' ')[0];
+            let match = strVal.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+            if (match) return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+            return strVal;
+        }
+
+        function extractFilters() {
+            if (plazaKey) {
+                allPlazasList = [...new Set(rawData.map(row => row[plazaKey]).filter(val => val !== undefined && val !== null && val !== ''))];
+                allPlazasList.sort();
+                selectedPlazasSet = new Set(allPlazasList);
+                renderPlazaDropdown();
+                updatePlazaTriggerLabel();
+            }
+
+            if (dateKey) {
+                allDatesList = [...new Set(rawData.map(row => parseDateString(row[dateKey])).filter(val => val !== ''))];
+                allDatesList.sort();
+                selectedDatesSet = new Set(allDatesList);
+                if (allDatesList.length > 0) {
+                    let firstDateParsed = new Date(allDatesList[0] + 'T00:00:00');
+                    if (!isNaN(firstDateParsed)) {
+                        calCurrentYear = firstDateParsed.getFullYear();
+                        calCurrentMonth = firstDateParsed.getMonth();
+                    }
+                }
+                renderCalendar();
+                updateDateTriggerLabel();
+            }
+
+            updateDependentFiltersLists();
+        }
+
+        function updateDependentFiltersLists() {
+            let tempFiltered = rawData.filter(row => {
+                let matchPlaza = plazaKey && selectedPlazasSet.size > 0 ? selectedPlazasSet.has(String(row[plazaKey])) : true;
+                let matchDate = dateKey && selectedDatesSet.size > 0 ? selectedDatesSet.has(parseDateString(row[dateKey])) : true;
+                return matchPlaza && matchDate;
+            });
+
+            if (routeKey) {
+                allRoutesList = [...new Set(tempFiltered.map(row => row[routeKey]).filter(val => val !== undefined && val !== null && val !== ''))];
+                allRoutesList.sort();
+                renderRouteCheckboxes(allRoutesList);
+            }
+
+            if (cpKey) {
+                allCpList = [...new Set(tempFiltered.map(row => row[cpKey]).filter(val => val !== undefined && val !== null && val !== ''))];
+                allCpList.sort();
+                renderCpCheckboxes(allCpList);
+            }
+        }
+
+        function renderPlazaDropdown() {
+            const container = document.getElementById('plaza-options-container');
+            if (!container) return;
+
+            let html = '';
+            allPlazasList.forEach(plaza => {
+                const isSelected = selectedPlazasSet.has(plaza);
+                const count = rawData.filter(r => r[plazaKey] === plaza).length;
+                html += `
+                    <div onclick="togglePlazaSelection('${plaza}')" class="flex items-center justify-between p-2 rounded-xl cursor-pointer transition-all hover:bg-gray-50 text-gray-800">
+                        <div class="flex items-center space-x-2">
+                            <input type="checkbox" ${isSelected ? 'checked' : ''} class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500 pointer-events-none">
+                            <span class="text-sm font-medium ${isSelected ? 'font-bold text-[#DA291C]' : 'text-gray-700'}">${plaza}</span>
+                        </div>
+                        <span class="bg-gray-100 text-gray-600 text-xs font-semibold px-2 py-0.5 rounded-full">${count}</span>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        window.togglePlazaSelection = function(plaza) {
+            if (selectedPlazasSet.has(plaza)) {
+                selectedPlazasSet.delete(plaza);
+            } else {
+                selectedPlazasSet.add(plaza);
+            }
+            renderPlazaDropdown();
+            updatePlazaTriggerLabel();
+            updateDependentFiltersLists();
+            currentTimelinePage = 0;
+            currentTablePage = 0;
+            applyCombinedFilters();
+        }
+
+        window.selectAllPlazas = function() {
+            selectedPlazasSet = new Set(allPlazasList);
+            renderPlazaDropdown();
+            updatePlazaTriggerLabel();
+            updateDependentFiltersLists();
+            currentTimelinePage = 0;
+            currentTablePage = 0;
+            applyCombinedFilters();
+        }
+
+        window.deselectAllPlazas = function() {
+            selectedPlazasSet.clear();
+            renderPlazaDropdown();
+            updatePlazaTriggerLabel();
+            updateDependentFiltersLists();
+            currentTimelinePage = 0;
+            currentTablePage = 0;
+            applyCombinedFilters();
+        }
+
+        function updatePlazaTriggerLabel() {
+            const labelEl = document.getElementById('plaza-trigger-label');
+            if (!labelEl) return;
+            if (selectedPlazasSet.size === 0) labelEl.innerText = "Ninguna plaza";
+            else if (selectedPlazasSet.size === allPlazasList.length) labelEl.innerText = "Plazas (Todas)";
+            else if (selectedPlazasSet.size === 1) labelEl.innerText = `Plaza: ${Array.from(selectedPlazasSet)[0]}`;
+            else labelEl.innerText = `Plazas (${selectedPlazasSet.size})`;
+        }
+
+        const plazaTrigger = document.getElementById('plaza-picker-trigger');
+        const plazaDropdown = document.getElementById('plaza-picker-dropdown');
+        if (plazaTrigger && plazaDropdown) {
+            plazaTrigger.addEventListener('click', (e) => { e.stopPropagation(); plazaDropdown.classList.toggle('hidden'); });
+            window.addEventListener('click', (e) => { if (!plazaDropdown.contains(e.target) && !plazaTrigger.contains(e.target)) plazaDropdown.classList.add('hidden'); });
+        }
+
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+        function renderCalendar() {
+            const titleEl = document.getElementById('cal-month-year-title');
+            const gridEl = document.getElementById('cal-days-grid');
+            titleEl.innerText = `${monthNames[calCurrentMonth]} ${calCurrentYear}`;
+
+            const firstDayIndex = new Date(calCurrentYear, calCurrentMonth, 1).getDay();
+            const totalDaysInMonth = new Date(calCurrentYear, calCurrentMonth + 1, 0).getDate();
+            const prevMonthDays = new Date(calCurrentYear, calCurrentMonth, 0).getDate();
+
+            let html = '';
+            for (let i = firstDayIndex - 1; i >= 0; i--) {
+                html += `<span class="p-1.5 text-gray-300 cursor-default">${prevMonthDays - i}</span>`;
+            }
+
+            for (let day = 1; day <= totalDaysInMonth; day++) {
+                let mStr = String(calCurrentMonth + 1).padStart(2, '0');
+                let dStr = String(day).padStart(2, '0');
+                let dateStr = `${calCurrentYear}-${mStr}-${dStr}`;
+
+                let hasData = allDatesList.includes(dateStr);
+                let isSelected = selectedDatesSet.has(dateStr);
+
+                if (hasData) {
+                    if (isSelected) {
+                        html += `<button type="button" onclick="toggleCalendarDate('${dateStr}')" class="p-1.5 rounded-lg bg-[#DA291C] text-white font-bold shadow-sm hover:opacity-90 transition-all">${day}</button>`;
+                    } else {
+                        html += `<button type="button" onclick="toggleCalendarDate('${dateStr}')" class="p-1.5 rounded-lg bg-red-50 text-gray-800 font-semibold border border-red-200 hover:bg-red-100 transition-all">${day}</button>`;
+                    }
+                } else {
+                    html += `<span class="p-1.5 text-gray-300 cursor-default">${day}</span>`;
+                }
+            }
+            gridEl.innerHTML = html;
+        }
+
+        window.toggleCalendarDate = function(dateStr) {
+            if (selectedDatesSet.has(dateStr)) selectedDatesSet.delete(dateStr);
+            else selectedDatesSet.add(dateStr);
+            renderCalendar();
+            updateDateTriggerLabel();
+            updateDependentFiltersLists();
+            currentTimelinePage = 0;
+            currentTablePage = 0;
+            applyCombinedFilters();
+        }
+
+        document.getElementById('cal-prev-month').addEventListener('click', () => { calCurrentMonth--; if (calCurrentMonth < 0) { calCurrentMonth = 11; calCurrentYear--; } renderCalendar(); });
+        document.getElementById('cal-next-month').addEventListener('click', () => { calCurrentMonth++; if (calCurrentMonth > 11) { calCurrentMonth = 0; calCurrentYear++; } renderCalendar(); });
+        document.getElementById('cal-prev-year').addEventListener('click', () => { calCurrentYear--; renderCalendar(); });
+        document.getElementById('cal-next-year').addEventListener('click', () => { calCurrentYear++; renderCalendar(); });
+
+        document.getElementById('cal-select-all').addEventListener('click', () => { selectedDatesSet = new Set(allDatesList); renderCalendar(); updateDateTriggerLabel(); updateDependentFiltersLists(); applyCombinedFilters(); });
+        document.getElementById('cal-clear-all').addEventListener('click', () => { selectedDatesSet.clear(); renderCalendar(); updateDateTriggerLabel(); updateDependentFiltersLists(); applyCombinedFilters(); });
+        document.getElementById('cal-today').addEventListener('click', () => { let today = new Date(); calCurrentYear = today.getFullYear(); calCurrentMonth = today.getMonth(); renderCalendar(); });
+
+        function updateDateTriggerLabel() {
+            const labelEl = document.getElementById('date-trigger-label');
+            if (selectedDatesSet.size === 0) labelEl.innerText = "Ningún día";
+            else if (selectedDatesSet.size === allDatesList.length) labelEl.innerText = "Todos los días";
+            else if (selectedDatesSet.size === 1) labelEl.innerText = Array.from(selectedDatesSet)[0];
+            else labelEl.innerText = `${selectedDatesSet.size} días seleccionados`;
+        }
+
+        const dateTrigger = document.getElementById('date-picker-trigger');
+        const dateDropdown = document.getElementById('date-picker-dropdown');
+        dateTrigger.addEventListener('click', (e) => { e.stopPropagation(); dateDropdown.classList.toggle('hidden'); });
+        window.addEventListener('click', (e) => { if (!dateDropdown.contains(e.target) && !dateTrigger.contains(e.target)) dateDropdown.classList.add('hidden'); });
+
+        function renderRouteCheckboxes(routes) {
+            document.getElementById('route-checkboxes-container').innerHTML = routes.map(r => `
+                <label class="flex items-center space-x-3 p-1.5 hover:bg-white rounded-lg cursor-pointer transition-all">
+                    <input type="checkbox" name="route-checkbox" value="${r}" checked class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500">
+                    <span class="text-sm text-gray-700">${r}</span>
+                </label>`).join('');
+        }
+
+        function renderCpCheckboxes(cps) {
+            document.getElementById('cp-checkboxes-container').innerHTML = cps.map(c => `
+                <label class="flex items-center space-x-3 p-1.5 hover:bg-white rounded-lg cursor-pointer transition-all">
+                    <input type="checkbox" name="cp-checkbox" value="${c}" checked class="w-4 h-4 text-red-600 border-gray-300 rounded focus:ring-red-500">
+                    <span class="text-sm text-gray-700">${c}</span>
+                </label>`).join('');
+        }
+
+        document.getElementById('route-search-input').addEventListener('input', (e) => {
+            renderRouteCheckboxes(allRoutesList.filter(r => String(r).toLowerCase().includes(e.target.value.toLowerCase())));
+        });
+        document.getElementById('cp-search-input').addEventListener('input', (e) => {
+            renderCpCheckboxes(allCpList.filter(c => String(c).toLowerCase().includes(e.target.value.toLowerCase())));
+        });
+
+        document.getElementById('global-search-input').addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => { currentTimelinePage = 0; currentTablePage = 0; applyCombinedFilters(); }, 300);
+        });
+
+        document.getElementById('sequence-search-input').addEventListener('input', () => {
+            clearTimeout(seqSearchTimeout);
+            seqSearchTimeout = setTimeout(() => { currentTimelinePage = 0; currentTablePage = 0; updateDashboard(); }, 300);
+        });
+
+        document.getElementById('select-all-routes').addEventListener('click', () => document.querySelectorAll('input[name="route-checkbox"]').forEach(cb => cb.checked = true));
+        document.getElementById('deselect-all-routes').addEventListener('click', () => document.querySelectorAll('input[name="route-checkbox"]').forEach(cb => cb.checked = false));
+        document.getElementById('select-all-cps').addEventListener('click', () => document.querySelectorAll('input[name="cp-checkbox"]').forEach(cb => cb.checked = true));
+        document.getElementById('deselect-all-cps').addEventListener('click', () => document.querySelectorAll('input[name="cp-checkbox"]').forEach(cb => cb.checked = false));
+
+        const routeModal = document.getElementById('route-modal');
+        document.getElementById('open-route-modal').addEventListener('click', () => routeModal.classList.remove('hidden'));
+        document.getElementById('close-route-modal').addEventListener('click', () => routeModal.classList.add('hidden'));
+        document.getElementById('cancel-route-modal').addEventListener('click', () => routeModal.classList.add('hidden'));
+        document.getElementById('apply-route-filter').addEventListener('click', () => { applyCombinedFilters(); routeModal.classList.add('hidden'); });
+
+        const cpModal = document.getElementById('cp-modal');
+        document.getElementById('open-cp-modal').addEventListener('click', () => cpModal.classList.remove('hidden'));
+        document.getElementById('close-cp-modal').addEventListener('click', () => cpModal.classList.add('hidden'));
+        document.getElementById('cancel-cp-modal').addEventListener('click', () => cpModal.classList.add('hidden'));
+        document.getElementById('apply-cp-filter').addEventListener('click', () => { applyCombinedFilters(); cpModal.classList.add('hidden'); });
+
+        const toggleFullscreenBtn = document.getElementById('toggle-fullscreen-btn');
+        const mapCard = document.getElementById('map-card');
+        const fullscreenIcon = document.getElementById('fullscreen-icon');
+        const fullscreenText = document.getElementById('fullscreen-text');
+
+        toggleFullscreenBtn.addEventListener('click', () => {
+            mapCard.classList.toggle('fullscreen');
+            const isFullscreen = mapCard.classList.contains('fullscreen');
+            fullscreenIcon.className = isFullscreen ? "fa-solid fa-compress" : "fa-solid fa-expand";
+            fullscreenText.innerText = isFullscreen ? "Restaurar" : "Pantalla Completa";
+            setTimeout(() => { if (mapInstance) mapInstance.invalidateSize(); }, 100);
+        });
+
+        const toggleLinesBtn = document.getElementById('toggle-lines-btn');
+        const linesIcon = document.getElementById('lines-icon');
+        const linesText = document.getElementById('lines-text');
+
+        toggleLinesBtn.addEventListener('click', () => {
+            showRouteLines = !showRouteLines;
+            linesIcon.className = showRouteLines ? "fa-solid fa-eye" : "fa-solid fa-eye-slash";
+            linesText.innerText = showRouteLines ? "Ocultar Líneas" : "Mostrar Líneas";
+
+            if (routeLinesLayer) {
+                if (showRouteLines) {
+                    if (!mapInstance.hasLayer(routeLinesLayer)) mapInstance.addLayer(routeLinesLayer);
+                } else {
+                    if (mapInstance.hasLayer(routeLinesLayer)) mapInstance.removeLayer(routeLinesLayer);
+                }
+            }
+        });
+
+        function checkActiveFilters() {
+            const globalQuery = document.getElementById('global-search-input').value.trim();
+            const seqQuery = document.getElementById('sequence-search-input').value.trim();
+            let plazaUnselected = plazaKey && selectedPlazasSet.size < allPlazasList.length;
+            let dateUnselected = dateKey && selectedDatesSet.size < allDatesList.length;
+            let routeUnselected = routeKey && document.querySelectorAll('input[name="route-checkbox"]:checked').length < document.querySelectorAll('input[name="route-checkbox"]').length;
+            let cpUnselected = cpKey && document.querySelectorAll('input[name="cp-checkbox"]:checked').length < document.querySelectorAll('input[name="cp-checkbox"]').length;
+
+            const hasActive = globalQuery !== '' || seqQuery !== '' || plazaUnselected || dateUnselected || routeUnselected || cpUnselected;
+            const resetBtn = document.getElementById('reset-filters');
+            resetBtn.className = hasActive ? "fixed bottom-6 right-6 z-50 bg-gray-900 hover:bg-gray-800 text-white px-4 py-3 rounded-full shadow-2xl transition-all duration-300 flex items-center space-x-2 text-sm font-medium transform scale-100 opacity-100 pointer-events-auto" : "fixed bottom-6 right-6 z-50 bg-gray-900 hover:bg-gray-800 text-white px-4 py-3 rounded-full shadow-2xl transition-all duration-300 flex items-center space-x-2 text-sm font-medium transform scale-0 opacity-0 pointer-events-none";
+        }
+
+        function applyCombinedFilters() {
+            const selectedPlazas = plazaKey ? Array.from(selectedPlazasSet) : null;
+            const selectedRoutes = routeKey ? Array.from(document.querySelectorAll('input[name="route-checkbox"]:checked')).map(cb => cb.value) : null;
+            const selectedCps = cpKey ? Array.from(document.querySelectorAll('input[name="cp-checkbox"]:checked')).map(cb => cb.value) : null;
+            const globalQuery = document.getElementById('global-search-input').value.toLowerCase().trim();
+
+            filteredData = rawData.filter((row) => {
+                let matchPlaza = plazaKey && selectedPlazas ? selectedPlazas.includes(String(row[plazaKey])) : true;
+                let matchDate = dateKey ? selectedDatesSet.has(parseDateString(row[dateKey])) : true;
+                let matchRoute = routeKey && selectedRoutes ? selectedRoutes.includes(String(row[routeKey])) : true;
+                let matchCp = cpKey && selectedCps ? selectedCps.includes(String(row[cpKey])) : true;
+                let matchGlobal = globalQuery !== '' ? Object.values(row).some(val => val !== undefined && val !== null && String(val).toLowerCase().includes(globalQuery)) : true;
+                return matchPlaza && matchDate && matchRoute && matchCp && matchGlobal;
+            });
+
+            if (dateKey) {
+                filteredData.sort((a, b) => {
+                    let timeA = a[dateKey] ? new Date(a[dateKey]).getTime() : 0;
+                    let timeB = b[dateKey] ? new Date(b[dateKey]).getTime() : 0;
+                    if (isNaN(timeA)) timeA = 0;
+                    if (isNaN(timeB)) timeB = 0;
+                    return timeA - timeB;
+                });
+            }
+
+            checkActiveFilters();
+            updateDashboard();
+        }
+
+        function getTargetSequences() {
+            const seqInput = document.getElementById('sequence-search-input').value.trim();
+            if (seqInput === '') return null;
+            const numbers = [];
+            for (let p of seqInput.split(',')) {
+                let num = parseInt(p.trim(), 10);
+                if (!isNaN(num)) numbers.push(num);
+            }
+            return numbers.length > 0 ? numbers : null;
+        }
+
+        function updateDashboard() {
+            renderTimelineKPIs();
+            renderTimeSeriesChart();
+            renderMap();
+            renderTable();
+            document.getElementById('search-counter').innerText = filteredData.length;
+            checkActiveFilters();
+        }
+
+        function findColumn(row, keywords) {
+            const keys = Object.keys(row);
+            for (let kw of keywords) {
+                let found = keys.find(k => k.toLowerCase().includes(kw));
+                if (found) return found;
+            }
+            return null;
+        }
+
+        function formatDuration(ms) {
+            if (isNaN(ms) || ms < 0) return '00:00:00';
+            let seconds = Math.floor(ms / 1000);
+            let hours = Math.floor(seconds / 3600);
+            seconds %= 3600;
+            let minutes = Math.floor(seconds / 60);
+            seconds %= 60;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        function renderTimeSeriesChart() {
+            const ctx = document.getElementById('time-series-chart').getContext('2d');
+            const targetSeqs = getTargetSequences();
+
+            let countsByInterval = {};
+            let timestamps = [];
+
+            filteredData.forEach((row, index) => {
+                const seqNum = index + 1;
+                if (targetSeqs !== null && !targetSeqs.includes(seqNum)) return;
+
+                if (dateKey && row[dateKey]) {
+                    let d = new Date(row[dateKey]);
+                    if (!isNaN(d)) {
+                        timestamps.push(d.getTime());
+                        let hours = String(d.getHours()).padStart(2, '0');
+                        let minutes = d.getMinutes() < 30 ? '00' : '30';
+                        let timeLabel = `${hours}:${minutes}`;
+                        countsByInterval[timeLabel] = (countsByInterval[timeLabel] || 0) + 1;
+                    }
+                }
+            });
+
+            timestamps.sort((a, b) => a - b);
+            let diffs = [];
+            for (let i = 1; i < timestamps.length; i++) {
+                let diff = timestamps[i] - timestamps[i - 1];
+                if (diff >= 0) diffs.push(diff);
+            }
+
+            let totalDiff = diffs.reduce((acc, curr) => acc + curr, 0);
+            let avgDiff = diffs.length > 0 ? totalDiff / diffs.length : 0;
+
+            document.getElementById('kpi-avg-time-val').innerText = diffs.length > 0 ? formatDuration(avgDiff) : '00:00:00';
+            document.getElementById('kpi-sum-dead-time-val').innerText = diffs.length > 0 ? formatDuration(totalDiff) : '00:00:00';
+
+            let sortedLabels = Object.keys(countsByInterval).sort();
+            let dataValues = sortedLabels.map(label => countsByInterval[label]);
+
+            let maxVal = dataValues.length > 0 ? Math.max(...dataValues) : 0;
+            let minVal = dataValues.length > 0 ? Math.min(...dataValues) : 0;
+
+            let maxIndex = dataValues.indexOf(maxVal);
+            let minIndex = dataValues.indexOf(minVal);
+
+            let maxTimeLabel = maxIndex !== -1 ? sortedLabels[maxIndex] : '-';
+            let minTimeLabel = minIndex !== -1 ? sortedLabels[minIndex] : '-';
+
+            document.getElementById('kpi-max-val').innerText = maxVal > 0 ? `${maxVal} entregas (${maxTimeLabel})` : 'Sin datos';
+            document.getElementById('kpi-min-val').innerText = dataValues.length > 0 ? `${minVal} entregas (${minTimeLabel})` : 'Sin datos';
+
+            if (timeChart) {
+                timeChart.destroy();
+            }
+
+            timeChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: sortedLabels,
+                    datasets: [{
+                        label: 'Cantidad de Entregas',
+                        data: dataValues,
+                        borderColor: '#DA291C',
+                        backgroundColor: 'rgba(218, 41, 28, 0.1)',
+                        borderWidth: 2.5,
+                        fill: true,
+                        tension: 0.3,
+                        pointBackgroundColor: dataValues.map(v => v === maxVal && v > 0 ? '#DA291C' : '#ffffff'),
+                        pointBorderColor: dataValues.map(v => v === maxVal && v > 0 ? '#990000' : '#DA291C'),
+                        pointRadius: dataValues.map(v => v === maxVal && v > 0 ? 6 : 3.5),
+                        pointHoverRadius: 7
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` Entregas: ${context.parsed.y}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 11, weight: '500' }, color: '#6B7280' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1, font: { size: 11 }, color: '#6B7280' },
+                            grid: { color: '#F3F4F6' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function initMap() {
+            if (!mapInstance) {
+                mapInstance = L.map('map').setView([23.6345, -102.5528], 5);
+                
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                    maxZoom: 19,
+                    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+                }).addTo(mapInstance);
+                
+                markersClusterGroup = L.markerClusterGroup({
+                    maxClusterRadius: 50,
+                    spiderfyOnMaxZoom: true,
+                    showCoverageOnHover: false,
+                    zoomToBoundsOnClick: true
+                });
+                mapInstance.addLayer(markersClusterGroup);
+
+                routeLinesLayer = L.layerGroup();
+            }
+            setTimeout(() => { if (mapInstance) mapInstance.invalidateSize(); }, 200);
+        }
+
+        function renderMap() {
+            if (!mapInstance) return;
+            markersClusterGroup.clearLayers();
+            if (routeLinesLayer) routeLinesLayer.clearLayers();
+
+            const targetSeqs = getTargetSequences();
+            const sample = filteredData[0] || rawData[0] || {};
+            const latKey = findColumn(sample, ['lat', 'latitud']);
+            const lngKey = findColumn(sample, ['lng', 'lon', 'longitud']);
+            const descKey = findColumn(sample, ['receiver name', 'direccion', 'cliente', 'tracking', 'guia']) || Object.keys(sample)[0];
+
+            let bounds = [];
+            let markersToAdd = [];
+            let validPointsForLines = [];
+
+            filteredData.forEach((row, index) => {
+                const seqNum = index + 1;
+                if (targetSeqs !== null && !targetSeqs.includes(seqNum)) return;
+
+                const lat = parseFloat(row[latKey]);
+                const lng = parseFloat(row[lngKey]);
+
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    let timeOnly = '-';
+                    if (dateKey && row[dateKey]) {
+                        let d = new Date(row[dateKey]);
+                        if (!isNaN(d)) {
+                            let hh = String(d.getHours()).padStart(2, '0');
+                            let mm = String(d.getMinutes()).padStart(2, '0');
+                            timeOnly = `${hh}:${mm} hrs`;
+                        } else {
+                            let parts = String(row[dateKey]).split(' ');
+                            if (parts.length > 1) timeOnly = parts[1];
+                            else timeOnly = String(row[dateKey]);
+                        }
+                    }
+
+                    const pointColor = targetSeqs !== null ? '#DA291C' : '#10B981';
+                    const numberedIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div style="background-color:${pointColor};color:white;font-weight:bold;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid white;box-shadow:0 3px 6px rgba(0,0,0,0.4);transform:scale(1.15);">${seqNum}</div>`,
+                        iconSize: [28, 28],
+                        iconAnchor: [14, 14]
+                    });
+
+                    const marker = L.marker([lat, lng], { icon: numberedIcon })
+                        .bindPopup(`<b>Secuencia #${seqNum}</b><br><i class="fa-regular fa-clock text-red-600 mr-1"></i>Hora: <b>${timeOnly}</b><br>${row[descKey] || 'Evento'}`);
+                    
+                    markersToAdd.push(marker);
+                    bounds.push([lat, lng]);
+                    
+                    let rowDate = dateKey ? new Date(row[dateKey]) : null;
+                    validPointsForLines.push({ latLng: L.latLng(lat, lng), seqNum, date: rowDate });
+                }
+            });
+
+            markersClusterGroup.addLayers(markersToAdd);
+
+            for (let i = 0; i < validPointsForLines.length - 1; i++) {
+                let p1 = validPointsForLines[i];
+                let p2 = validPointsForLines[i+1];
+                let distMeters = p1.latLng.distanceTo(p2.latLng);
+                let distText = distMeters >= 1000 ? (distMeters / 1000).toFixed(2) + ' km' : distMeters.toFixed(1) + ' metros';
+
+                let timeText = '';
+                if (p1.date && p2.date && !isNaN(p1.date) && !isNaN(p2.date)) {
+                    let diffMs = p2.date - p1.date;
+                    if (diffMs >= 0) {
+                        let totalMins = Math.floor(diffMs / 60000);
+                        let hrs = Math.floor(totalMins / 60);
+                        let mins = totalMins % 60;
+                        if (hrs > 0) {
+                            timeText = `<br>Tiempo transcurrido: <b>${hrs}h ${mins}m</b>`;
+                        } else {
+                            timeText = `<br>Tiempo transcurrido: <b>${totalMins} min</b>`;
+                        }
+                    }
+                }
+
+                let segmentLine = L.polyline([p1.latLng, p2.latLng], {
+                    color: '#DA291C',
+                    weight: 3.5,
+                    opacity: 0.8,
+                    dashArray: '5, 5'
+                });
+
+                segmentLine.bindTooltip(`Seq #${p1.seqNum} &rarr; #${p2.seqNum}<br>Distancia: <b>${distText}</b>${timeText}`, {
+                    sticky: true,
+                    className: 'bg-white px-3 py-2 rounded-xl shadow-lg text-xs font-semibold text-gray-800 border border-gray-200'
+                });
+
+                routeLinesLayer.addLayer(segmentLine);
+            }
+
+            if (showRouteLines && routeLinesLayer) {
+                if (!mapInstance.hasLayer(routeLinesLayer)) mapInstance.addLayer(routeLinesLayer);
+            } else {
+                if (mapInstance.hasLayer(routeLinesLayer)) mapInstance.removeLayer(routeLinesLayer);
+            }
+
+            if (bounds.length > 0 && isInitialMapLoad) {
+                mapInstance.fitBounds(bounds, { maxZoom: 14, padding: [50, 50] });
+                isInitialMapLoad = false;
+            }
+
+            setTimeout(() => { mapInstance.invalidateSize(); }, 150);
+        }
+
+        function renderTimelineKPIs() {
+            const sample = rawData[0] || {};
+            const statusKey = findColumn(sample, ['status', 'estatus', 'estado', 'situacion', 'tr2 process']) || Object.keys(sample)[0];
+            const descKey = findColumn(sample, ['receiver name', 'direccion', 'cliente', 'tracking', 'guia']) || Object.keys(sample)[0];
+            
+            const targetSeqs = getTargetSequences();
+            const container = document.getElementById('timeline-kpi-container');
+            const paginationContainer = document.getElementById('timeline-pagination-container');
+            
+            const indexedData = filteredData.map((row, index) => ({ row, seqNum: index + 1 }));
+            const searchedData = indexedData.filter(item => targetSeqs === null || targetSeqs.includes(item.seqNum));
+
+            if (searchedData.length === 0) {
+                container.innerHTML = `<div class="col-span-full py-6 text-center text-gray-400 text-sm">No se encontraron registros para las secuencias especificadas.</div>`;
+                paginationContainer.innerHTML = '';
+                return;
+            }
+
+            const totalPages = Math.ceil(searchedData.length / ITEMS_PER_PAGE);
+            if (currentTimelinePage >= totalPages) currentTimelinePage = 0;
+            if (currentTimelinePage < 0) currentTimelinePage = totalPages - 1;
+
+            const currentItems = searchedData.slice(currentTimelinePage * ITEMS_PER_PAGE, (currentTimelinePage + 1) * ITEMS_PER_PAGE);
+
+            container.innerHTML = currentItems.map(item => {
+                const { row, seqNum } = item;
+                const routeVal = routeKey ? (row[routeKey] !== undefined ? row[routeKey] : '-') : '-';
+                const cpVal = cpKey ? (row[cpKey] !== undefined ? row[cpKey] : '-') : '-';
+                const statusVal = row[statusKey] !== undefined ? row[statusKey] : '-';
+                const descVal = row[descKey] !== undefined ? row[descKey] : '-';
+                const timeVal = dateKey && row[dateKey] ? row[dateKey] : '-';
+
+                return `
+                    <div class="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:border-red-300 transition-all flex flex-col justify-between space-y-1.5 border-l-4 estafeta-border">
+                        <div class="flex justify-between items-center">
+                            <span class="font-bold text-xs estafeta-red-text">#${seqNum}</span>
+                            <span class="text-[10px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded">${statusVal}</span>
+                        </div>
+                        <div>
+                            <p class="text-[11px] text-gray-500 font-bold"><i class="fa-regular fa-clock mr-1"></i>${timeVal}</p>
+                            <p class="text-[11px] text-gray-400 font-medium mt-0.5">Ruta: <span class="text-gray-700 font-bold">${routeVal}</span> | C.P.: <span class="text-gray-700 font-bold">${cpVal}</span></p>
+                            <p class="text-xs font-semibold text-gray-800 mt-0.5 truncate" title="${descVal}">${descVal}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            paginationContainer.innerHTML = `
+                <button onclick="changeTimelinePage(${currentTimelinePage - 1}, ${totalPages})" class="px-4 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 text-xs font-bold transition-all shadow-sm">Anterior</button>
+                <span class="text-xs font-bold text-gray-800">Página ${currentTimelinePage + 1} de ${totalPages}</span>
+                <button onclick="changeTimelinePage(${currentTimelinePage + 1}, ${totalPages})" class="px-4 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 text-xs font-bold transition-all shadow-sm">Siguiente</button>
+            `;
+        }
+
+        window.changeTimelinePage = function(targetPage, totalPages) {
+            currentTimelinePage = targetPage < 0 ? totalPages - 1 : (targetPage >= totalPages ? 0 : targetPage);
+            renderTimelineKPIs();
+        }
+
+        function renderTable() {
+            const sample = rawData[0] || {};
+            const excludedColumns = ['regional', 'distrito', 'latitude', 'longitude', 'system name', 'tr2 process', 'null'];
+            const originalHeaders = Object.keys(sample).filter(h => h && !excludedColumns.includes(h.trim().toLowerCase()));
+            const headers = ['# Secuencia', ...originalHeaders];
+
+            document.getElementById('table-headers').innerHTML = headers.map(h => `<th class="px-6 py-3 text-left font-semibold text-gray-600 uppercase tracking-wider">${h}</th>`).join('');
+
+            const targetSeqs = getTargetSequences();
+            const indexedData = filteredData.map((row, index) => ({ row, seqNum: index + 1 }));
+            const searchedData = indexedData.filter(item => targetSeqs === null || targetSeqs.includes(item.seqNum));
+
+            const tbody = document.getElementById('table-body');
+            const tablePaginationContainer = document.getElementById('table-pagination-container');
+
+            if (searchedData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="${headers.length}" class="px-6 py-8 text-center text-gray-400 text-sm">No hay registros coincidentes.</td></tr>`;
+                tablePaginationContainer.innerHTML = '';
+                return;
+            }
+
+            const totalPages = Math.ceil(searchedData.length / ITEMS_PER_PAGE);
+            if (currentTablePage >= totalPages) currentTablePage = 0;
+            if (currentTablePage < 0) currentTablePage = totalPages - 1;
+
+            const currentItems = searchedData.slice(currentTablePage * ITEMS_PER_PAGE, (currentTablePage + 1) * ITEMS_PER_PAGE);
+
+            tbody.innerHTML = currentItems.map(item => {
+                let rowHtml = `<td class="px-6 py-4 whitespace-nowrap font-bold estafeta-red-text">#${item.seqNum}</td>`;
+                rowHtml += originalHeaders.map(h => `<td class="px-6 py-4 whitespace-nowrap text-gray-700">${item.row[h] !== undefined && item.row[h] !== null ? item.row[h] : ''}</td>`).join('');
+                return `<tr class="bg-red-50/40 hover:bg-gray-50 border-l-2 estafeta-border">${rowHtml}</tr>`;
+            }).join('');
+
+            tablePaginationContainer.innerHTML = `
+                <button onclick="changeTablePage(${currentTablePage - 1}, ${totalPages})" class="px-4 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 text-xs font-bold transition-all shadow-sm">Anterior</button>
+                <span class="text-xs font-bold text-gray-800">Página ${currentTablePage + 1} de ${totalPages}</span>
+                <button onclick="changeTablePage(${currentTablePage + 1}, ${totalPages})" class="px-4 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-700 border border-gray-200 text-xs font-bold transition-all shadow-sm">Siguiente</button>
+            `;
+        }
+
+        window.changeTablePage = function(targetPage, totalPages) {
+            currentTablePage = targetPage < 0 ? totalPages - 1 : (targetPage >= totalPages ? 0 : targetPage);
+            renderTable();
+        }
+
+        document.getElementById('reset-filters').addEventListener('click', () => {
+            filteredData = [...rawData];
+            currentTimelinePage = 0;
+            currentTablePage = 0;
+            isInitialMapLoad = true;
+            document.getElementById('global-search-input').value = '';
+            document.getElementById('sequence-search-input').value = '';
+            selectedPlazasSet = new Set(allPlazasList);
+            renderPlazaDropdown();
+            updatePlazaTriggerLabel();
+            selectedDatesSet = new Set(allDatesList);
+            renderCalendar();
+            updateDateTriggerLabel();
+            updateDependentFiltersLists();
+            document.querySelectorAll('input[name="route-checkbox"]').forEach(cb => cb.checked = true);
+            document.querySelectorAll('input[name="cp-checkbox"]').forEach(cb => cb.checked = true);
+            document.getElementById('route-search-input').value = '';
+            document.getElementById('cp-search-input').value = '';
+            renderRouteCheckboxes(allRoutesList);
+            renderCpCheckboxes(allCpList);
+            updateDashboard();
+        });
+    </script>
+</body>
+</html>
